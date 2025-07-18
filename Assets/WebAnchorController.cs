@@ -774,7 +774,6 @@ public class WebAnchorController : MonoBehaviour
                 <canvas id=""anchorPlot""></canvas>
             </div>
             <div class=""plot-info"">
-                Drag anchors to move them in the X-Z plane. Y position remains unchanged. Scale: 1 Unity unit = 0.25 meters.
             </div>
         </div>
     </div>
@@ -820,28 +819,17 @@ public class WebAnchorController : MonoBehaviour
             document.body.appendChild(tooltip);
         }
         
-        // Scale factor: 1 Unity unit = 0.25 meters
-        const SCALE_FACTOR = 0.25;
-        
-        // Convert world coordinates to canvas coordinates
+        // Convert world coordinates to canvas coordinates (1 Unity unit = 1 meter)
         function worldToCanvas(x, z) {
-            // Scale the coordinates: Unity units to meters
-            const scaledX = x * SCALE_FACTOR;
-            const scaledZ = z * SCALE_FACTOR;
-            
-            const canvasX = ((scaledX - plotBounds.minX) / (plotBounds.maxX - plotBounds.minX)) * canvas.width;
-            const canvasY = canvas.height - ((scaledZ - plotBounds.minZ) / (plotBounds.maxZ - plotBounds.minZ)) * canvas.height;
+            const canvasX = ((x - plotBounds.minX) / (plotBounds.maxX - plotBounds.minX)) * canvas.width;
+            const canvasY = canvas.height - ((z - plotBounds.minZ) / (plotBounds.maxZ - plotBounds.minZ)) * canvas.height;
             return { x: canvasX, y: canvasY };
         }
         
-        // Convert canvas coordinates to world coordinates
+        // Convert canvas coordinates to world coordinates (1 Unity unit = 1 meter)
         function canvasToWorld(canvasX, canvasY) {
-            const scaledX = plotBounds.minX + (canvasX / canvas.width) * (plotBounds.maxX - plotBounds.minX);
-            const scaledZ = plotBounds.maxZ - (canvasY / canvas.height) * (plotBounds.maxZ - plotBounds.minZ);
-            
-            // Convert back from meters to Unity units
-            const x = scaledX / SCALE_FACTOR;
-            const z = scaledZ / SCALE_FACTOR;
+            const x = plotBounds.minX + (canvasX / canvas.width) * (plotBounds.maxX - plotBounds.minX);
+            const z = plotBounds.maxZ - (canvasY / canvas.height) * (plotBounds.maxZ - plotBounds.minZ);
             return { x, z };
         }
         
@@ -862,7 +850,7 @@ public class WebAnchorController : MonoBehaviour
             
             // Vertical grid lines (every 0.5 meters)
             for (let x = plotBounds.minX; x <= plotBounds.maxX; x += 0.5) {
-                const canvasX = worldToCanvas(x / SCALE_FACTOR, 0).x;
+                const canvasX = worldToCanvas(x, 0).x;
                 ctx.beginPath();
                 ctx.moveTo(canvasX, 0);
                 ctx.lineTo(canvasX, canvas.height);
@@ -871,7 +859,7 @@ public class WebAnchorController : MonoBehaviour
             
             // Horizontal grid lines (every 0.5 meters)
             for (let z = plotBounds.minZ; z <= plotBounds.maxZ; z += 0.5) {
-                const canvasY = worldToCanvas(0, z / SCALE_FACTOR).y;
+                const canvasY = worldToCanvas(0, z).y;
                 ctx.beginPath();
                 ctx.moveTo(0, canvasY);
                 ctx.lineTo(canvas.width, canvasY);
@@ -904,14 +892,14 @@ public class WebAnchorController : MonoBehaviour
             // X axis labels
             for (let x = Math.ceil(plotBounds.minX); x <= Math.floor(plotBounds.maxX); x += 1) {
                 if (x === 0) continue; // Skip origin
-                const canvasX = worldToCanvas(x / SCALE_FACTOR, 0).x;
+                const canvasX = worldToCanvas(x, 0).x;
                 ctx.fillText(`${x}m`, canvasX, xAxisY + 15);
             }
             
             // Z axis labels
             for (let z = Math.ceil(plotBounds.minZ); z <= Math.floor(plotBounds.maxZ); z += 1) {
                 if (z === 0) continue; // Skip origin
-                const canvasY = worldToCanvas(0, z / SCALE_FACTOR).y;
+                const canvasY = worldToCanvas(0, z).y;
                 ctx.fillText(`${z}m`, zAxisX - 15, canvasY + 3);
             }
             
@@ -963,18 +951,12 @@ public class WebAnchorController : MonoBehaviour
                 maxZ = Math.max(maxZ, anchor.position.z);
             });
             
-            // Scale the bounds to meters
-            const scaledMinX = minX * SCALE_FACTOR;
-            const scaledMaxX = maxX * SCALE_FACTOR;
-            const scaledMinZ = minZ * SCALE_FACTOR;
-            const scaledMaxZ = maxZ * SCALE_FACTOR;
-            
             // Add padding (in meters)
             const padding = 0.5; // 0.5 meters padding
-            plotBounds.minX = scaledMinX - padding;
-            plotBounds.maxX = scaledMaxX + padding;
-            plotBounds.minZ = scaledMinZ - padding;
-            plotBounds.maxZ = scaledMaxZ + padding;
+            plotBounds.minX = minX - padding;
+            plotBounds.maxX = maxX + padding;
+            plotBounds.minZ = minZ - padding;
+            plotBounds.maxZ = maxZ + padding;
             
             // Ensure minimum bounds (in meters)
             if (plotBounds.maxX - plotBounds.minX < 1) {
