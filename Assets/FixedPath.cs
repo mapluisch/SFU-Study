@@ -5,6 +5,7 @@ using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.InputSystem;
 using System.IO;
+using System.Linq;
 
 public class FixedPath : MonoBehaviour
 {
@@ -27,11 +28,23 @@ public class FixedPath : MonoBehaviour
     [SerializeField] private float keyboardMovementSpeed = 5f;
     [SerializeField] private Transform editorCamera;
 
+    [Header("Random Path Generator")]
+    [SerializeField] private bool enableRandomPathGenerator = true;
+    [SerializeField] private int randomPathLength = 10;
+    [SerializeField] private float minDistanceBetweenAnchors = 1.0f;
+    [SerializeField] private float maxDistanceBetweenAnchors = 5.0f;
+    [SerializeField] private int maxAttemptsPerAnchor = 50;
+
     private List<GameObject> anchorPoints = new List<GameObject>();
     private List<Vector3> anchorPositions = new List<Vector3>();
     private LineRenderer pathLine;
     private bool triggerPressed = false;
     private bool keyboardTriggerPressed = false;
+
+    // Random path generator data
+    private List<int> currentPath = new List<int>();
+    private List<Vector3> pathPositions = new List<Vector3>();
+    private LineRenderer randomPathLine;
 
     // File path for saving anchor data
     private string saveFilePath;
@@ -96,6 +109,18 @@ public class FixedPath : MonoBehaviour
         pathLine.endWidth = lineWidth;
         pathLine.positionCount = 0;
         pathLine.useWorldSpace = true;
+
+        // Create LineRenderer for random path visualization
+        GameObject randomPathObject = new GameObject("RandomPathLine");
+        randomPathObject.transform.SetParent(transform);
+        randomPathLine = randomPathObject.AddComponent<LineRenderer>();
+        randomPathLine.material = pathLineMaterial;
+        randomPathLine.startWidth = lineWidth * 2f; // Make it slightly thicker
+        randomPathLine.endWidth = lineWidth * 2f;
+        randomPathLine.positionCount = 0;
+        randomPathLine.useWorldSpace = true;
+        randomPathLine.startColor = Color.green;
+        randomPathLine.endColor = Color.green;
 
         // Set up save file path
         saveFilePath = Path.Combine(Application.persistentDataPath, "spatial_path.json");
@@ -196,6 +221,22 @@ public class FixedPath : MonoBehaviour
             LoadSavedPath();
             Debug.Log("Path loaded manually");
         }
+
+        // Random path generator controls
+        if (enableRandomPathGenerator)
+        {
+            // Generate random path with R key
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                GenerateRandomPath();
+            }
+
+            // Clear random path with T key
+            if (Input.GetKeyDown(KeyCode.T))
+            {
+                ClearRandomPath();
+            }
+        }
     }
 
     void CreateAnchorPoint(ActionBasedController controller)
@@ -247,6 +288,12 @@ public class FixedPath : MonoBehaviour
 
         pathLine.positionCount = anchorPositions.Count;
         pathLine.SetPositions(anchorPositions.ToArray());
+
+        // Also update random path visualization if it exists
+        if (HasRandomPath())
+        {
+            UpdateRandomPathVisualization();
+        }
     }
 
     void SavePath()
@@ -426,6 +473,153 @@ public class FixedPath : MonoBehaviour
             Debug.Log($"Removed anchor at index {index}");
         }
     }
+
+    // Random Path Generator Methods
+    public void GenerateRandomPath()
+    {
+        if (anchorPoints.Count < 2)
+        {
+            Debug.LogWarning("Need at least 2 anchor points to generate a random path");
+            return;
+        }
+
+        ClearRandomPath();
+
+        // Generate a random path through the anchors
+        List<int> path = GenerateRandomPathSequence();
+
+        if (path != null && path.Count > 0)
+        {
+            currentPath = path;
+            UpdateRandomPathVisualization();
+            Debug.Log($"Generated random path with {path.Count} steps: {string.Join(" -> ", path)}");
+        }
+        else
+        {
+            Debug.LogWarning("Failed to generate a valid random path");
+        }
+    }
+
+    private List<int> GenerateRandomPathSequence()
+    {
+        List<int> path = new List<int>();
+        List<int> availableAnchors = new List<int>();
+
+        // Initialize available anchors (all anchor indices)
+        for (int i = 0; i < anchorPoints.Count; i++)
+        {
+            availableAnchors.Add(i);
+        }
+
+        // Start with a random anchor
+        int currentAnchor = Random.Range(0, anchorPoints.Count);
+        path.Add(currentAnchor);
+        availableAnchors.Remove(currentAnchor);
+
+        // Generate path sequence
+        for (int step = 1; step < randomPathLength; step++)
+        {
+            // Find valid next anchors (within distance constraints)
+            List<int> validNextAnchors = GetValidNextAnchors(currentAnchor, availableAnchors);
+
+            if (validNextAnchors.Count == 0)
+            {
+                // If no valid next anchors, try to find any anchor within range
+                validNextAnchors = GetValidNextAnchors(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList());
+
+                if (validNextAnchors.Count == 0)
+                {
+                    // If still no valid anchors, break the path
+                    Debug.LogWarning($"No valid next anchor found at step {step}");
+                    break;
+                }
+            }
+
+            // Choose a random valid next anchor
+            int nextAnchor = validNextAnchors[Random.Range(0, validNextAnchors.Count)];
+            path.Add(nextAnchor);
+
+            // Update current anchor and available anchors
+            currentAnchor = nextAnchor;
+            if (availableAnchors.Contains(nextAnchor))
+            {
+                availableAnchors.Remove(nextAnchor);
+            }
+        }
+
+        return path;
+    }
+
+    private List<int> GetValidNextAnchors(int currentAnchor, List<int> candidateAnchors)
+    {
+        List<int> validAnchors = new List<int>();
+        Vector3 currentPosition = anchorPositions[currentAnchor];
+
+        foreach (int candidateIndex in candidateAnchors)
+        {
+            if (candidateIndex == currentAnchor) continue;
+
+            Vector3 candidatePosition = anchorPositions[candidateIndex];
+            float distance = Vector3.Distance(currentPosition, candidatePosition);
+
+            if (distance >= minDistanceBetweenAnchors && distance <= maxDistanceBetweenAnchors)
+            {
+                validAnchors.Add(candidateIndex);
+            }
+        }
+
+        return validAnchors;
+    }
+
+    private void UpdateRandomPathVisualization()
+    {
+        if (randomPathLine == null || currentPath.Count < 2) return;
+
+        // Create positions list for the path
+        pathPositions.Clear();
+        foreach (int anchorIndex in currentPath)
+        {
+            if (anchorIndex >= 0 && anchorIndex < anchorPositions.Count)
+            {
+                pathPositions.Add(anchorPositions[anchorIndex]);
+            }
+        }
+
+        // Update the line renderer
+        randomPathLine.positionCount = pathPositions.Count;
+        randomPathLine.SetPositions(pathPositions.ToArray());
+    }
+
+    public void ClearRandomPath()
+    {
+        currentPath.Clear();
+        pathPositions.Clear();
+
+        if (randomPathLine != null)
+        {
+            randomPathLine.positionCount = 0;
+        }
+
+        Debug.Log("Random path cleared");
+    }
+
+    // Public methods to access random path data
+    public List<int> GetCurrentRandomPath()
+    {
+        return new List<int>(currentPath);
+    }
+
+    public List<Vector3> GetRandomPathPositions()
+    {
+        return new List<Vector3>(pathPositions);
+    }
+
+    public bool HasRandomPath()
+    {
+        return currentPath.Count > 0;
+    }
+
+
 
     // Data structure for serialization
     [System.Serializable]
