@@ -69,8 +69,16 @@ public class AnchorRunningText : MonoBehaviour
         }
         else
         {
-            // Mark that we need to update, but don't create objects here
-            needsUpdate = true;
+            // If we have existing characters, reposition them immediately
+            if (textContainer.transform.childCount > 0)
+            {
+                RepositionExistingCharacters();
+            }
+            else
+            {
+                // Mark that we need to update, but don't create objects here
+                needsUpdate = true;
+            }
         }
     }
 
@@ -104,15 +112,29 @@ public class AnchorRunningText : MonoBehaviour
         {
             // Reuse existing container
             textContainer = existingContainer;
-            ClearExistingCharacters();
+            RepositionExistingCharacters();
         }
         else
         {
-            // Create new container
-            textContainer = new GameObject("TextContainer");
-            textContainer.transform.SetParent(transform);
-            textContainer.transform.localPosition = Vector3.zero;
+            // Create new container only if not in prefab mode
+            if (!IsInPrefabMode())
+            {
+                textContainer = new GameObject("TextContainer");
+                textContainer.transform.SetParent(transform);
+                textContainer.transform.localPosition = Vector3.zero;
+                CreateNewCharacters();
+            }
+            else
+            {
+                return; // Don't create objects in prefab mode
+            }
         }
+    }
+
+    void CreateNewCharacters()
+    {
+        // Clear the list
+        textMeshes.Clear();
 
         // Calculate the total arc length needed for the text
         float characterWidth = fontSize * 0.01f; // Approximate character width
@@ -154,6 +176,58 @@ public class AnchorRunningText : MonoBehaviour
         }
     }
 
+    void RepositionExistingCharacters()
+    {
+        // Get existing character objects
+        Transform[] children = textContainer.GetComponentsInChildren<Transform>();
+        List<Transform> characterTransforms = new List<Transform>();
+
+        foreach (Transform child in children)
+        {
+            if (child != textContainer.transform && child.name.StartsWith("Char_"))
+            {
+                characterTransforms.Add(child);
+            }
+        }
+
+        // Calculate the total arc length needed for the text
+        float characterWidth = fontSize * 0.01f; // Approximate character width
+        totalArcLength = textContent.Length * (characterWidth + characterSpacing);
+
+        // Calculate the angle per character
+        float anglePerCharacter = (totalArcLength / (cylinderRadius + textPadding)) * Mathf.Rad2Deg;
+
+        // Reposition existing characters
+        for (int i = 0; i < characterTransforms.Count && i < textContent.Length; i++)
+        {
+            Transform charTransform = characterTransforms[i];
+
+            // Calculate new position on the cylinder with padding (reverse order)
+            float angle = (textContent.Length - 1 - i) * anglePerCharacter;
+            float radiusWithPadding = cylinderRadius + textPadding;
+            float x = radiusWithPadding * Mathf.Cos(angle * Mathf.Deg2Rad);
+            float z = radiusWithPadding * Mathf.Sin(angle * Mathf.Deg2Rad);
+
+            // Update position
+            charTransform.localPosition = new Vector3(x, textHeight, z);
+
+            // Update rotation to face outward from the cylinder center (no X rotation)
+            Vector3 direction = new Vector3(charTransform.localPosition.x, 0, charTransform.localPosition.z).normalized;
+            charTransform.localRotation = Quaternion.LookRotation(direction, Vector3.up);
+
+            // Flip the character by rotating 180 degrees around Y-axis
+            charTransform.localRotation *= Quaternion.Euler(0, 180, 0);
+
+            // Update TextMeshPro properties
+            TextMeshPro textMesh = charTransform.GetComponent<TextMeshPro>();
+            if (textMesh != null)
+            {
+                textMesh.fontSize = fontSize;
+                textMesh.color = textColor;
+            }
+        }
+    }
+
     GameObject FindExistingTextContainer()
     {
         // Look for existing TextContainer in children
@@ -168,18 +242,37 @@ public class AnchorRunningText : MonoBehaviour
         return null;
     }
 
+    bool IsInPrefabMode()
+    {
+        // Check if we're in prefab edit mode
+        return UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject) ||
+               UnityEditor.PrefabUtility.IsPartOfPrefabInstance(gameObject);
+    }
+
     void ClearExistingCharacters()
     {
         // Clear the list
         textMeshes.Clear();
 
         // Remove all character children from the container
-        // destory all children of this gameobject while there are still child count > 0
-        while (transform.childCount > 0)
+        if (textContainer != null)
         {
-            foreach (Transform child in transform)
+            // Get all children and destroy them
+            List<Transform> childrenToDestroy = new List<Transform>();
+            foreach (Transform child in textContainer.transform)
             {
-                Destroy(child.gameObject);
+                childrenToDestroy.Add(child);
+            }
+
+
+
+
+            foreach (Transform child in childrenToDestroy)
+            {
+                if (child != null)
+                {
+                    DestroyImmediate(child.gameObject);
+                }
             }
         }
     }
