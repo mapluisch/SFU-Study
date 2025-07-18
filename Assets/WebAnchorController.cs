@@ -866,7 +866,7 @@ public class WebAnchorController : MonoBehaviour
                 ctx.stroke();
             }
             
-            // Draw axes
+            // Draw axes first
             ctx.strokeStyle = '#495057';
             ctx.lineWidth = 2;
             
@@ -884,20 +884,48 @@ public class WebAnchorController : MonoBehaviour
             ctx.lineTo(zAxisX, canvas.height);
             ctx.stroke();
             
+            // Draw tick marks at 1m intervals
+            ctx.strokeStyle = '#495057';
+            ctx.lineWidth = 2;
+            
+            // Vertical tick marks on X axis
+            const startX = Math.floor(plotBounds.minX);
+            const endX = Math.ceil(plotBounds.maxX);
+            for (let x = startX; x <= endX; x += 1) {
+                const canvasX = worldToCanvas(x, 0).x;
+                const tickLength = 8;
+                ctx.beginPath();
+                ctx.moveTo(canvasX, xAxisY - tickLength);
+                ctx.lineTo(canvasX, xAxisY + tickLength);
+                ctx.stroke();
+            }
+            
+            // Horizontal tick marks on Z axis
+            const startZ = Math.floor(plotBounds.minZ);
+            const endZ = Math.ceil(plotBounds.maxZ);
+            for (let z = startZ; z <= endZ; z += 1) {
+                const canvasY = worldToCanvas(0, z).y;
+                const tickLength = 8;
+                ctx.beginPath();
+                ctx.moveTo(zAxisX - tickLength, canvasY);
+                ctx.lineTo(zAxisX + tickLength, canvasY);
+                ctx.stroke();
+            }
+            
             // Draw meter labels on axes
             ctx.fillStyle = '#495057';
             ctx.font = '10px Arial';
             ctx.textAlign = 'center';
             
             // X axis labels
-            for (let x = Math.ceil(plotBounds.minX); x <= Math.floor(plotBounds.maxX); x += 1) {
+            for (let x = startX; x <= endX; x += 1) {
                 if (x === 0) continue; // Skip origin
                 const canvasX = worldToCanvas(x, 0).x;
                 ctx.fillText(`${x}m`, canvasX, xAxisY + 15);
             }
             
             // Z axis labels
-            for (let z = Math.ceil(plotBounds.minZ); z <= Math.floor(plotBounds.maxZ); z += 1) {
+            for (let z = startZ; z <= endZ; z += 1) {
                 if (z === 0) continue; // Skip origin
                 const canvasY = worldToCanvas(0, z).y;
                 ctx.fillText(`${z}m`, zAxisX - 15, canvasY + 3);
@@ -969,6 +997,49 @@ public class WebAnchorController : MonoBehaviour
                 plotBounds.minZ = center - 0.5;
                 plotBounds.maxZ = center + 0.5;
             }
+            
+            // Ensure equal scaling on both axes
+            const rangeX = plotBounds.maxX - plotBounds.minX;
+            const rangeZ = plotBounds.maxZ - plotBounds.minZ;
+            const maxRange = Math.max(rangeX, rangeZ);
+            
+            // Calculate centers
+            const centerX = (plotBounds.maxX + plotBounds.minX) / 2;
+            const centerZ = (plotBounds.maxZ + plotBounds.minZ) / 2;
+            
+            // Apply equal scaling from the center
+            plotBounds.minX = centerX - maxRange / 2;
+            plotBounds.maxX = centerX + maxRange / 2;
+            plotBounds.minZ = centerZ - maxRange / 2;
+            plotBounds.maxZ = centerZ + maxRange / 2;
+            
+            // Ensure origin (0,0) is always visible for tick marks
+            const originPadding = Math.max(1, maxRange * 0.1); // At least 1m or 10% of range
+            if (plotBounds.minX > -originPadding) {
+                plotBounds.minX = -originPadding;
+            }
+            if (plotBounds.maxX < originPadding) {
+                plotBounds.maxX = originPadding;
+            }
+            if (plotBounds.minZ > -originPadding) {
+                plotBounds.minZ = -originPadding;
+            }
+            if (plotBounds.maxZ < originPadding) {
+                plotBounds.maxZ = originPadding;
+            }
+            
+            // Re-apply equal scaling after origin padding to maintain square aspect ratio
+            const finalRangeX = plotBounds.maxX - plotBounds.minX;
+            const finalRangeZ = plotBounds.maxZ - plotBounds.minZ;
+            const finalMaxRange = Math.max(finalRangeX, finalRangeZ);
+            
+            const finalCenterX = (plotBounds.maxX + plotBounds.minX) / 2;
+            const finalCenterZ = (plotBounds.maxZ + plotBounds.minZ) / 2;
+            
+            plotBounds.minX = finalCenterX - finalMaxRange / 2;
+            plotBounds.maxX = finalCenterX + finalMaxRange / 2;
+            plotBounds.minZ = finalCenterZ - finalMaxRange / 2;
+            plotBounds.maxZ = finalCenterZ + finalMaxRange / 2;
         }
         
         // Draw all anchors on the plot
@@ -1025,11 +1096,44 @@ public class WebAnchorController : MonoBehaviour
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
-            const worldPos = canvasToWorld(mouseX, mouseY);
+            
+            // Check if mouse is near the edge of the canvas
+            const edgeThreshold = 20; // pixels from edge
+            let shouldExpandBounds = false;
+            
+            if (mouseX < edgeThreshold || mouseX > canvas.width - edgeThreshold ||
+                mouseY < edgeThreshold || mouseY > canvas.height - edgeThreshold) {
+                shouldExpandBounds = true;
+            }
+            
+            // Clamp mouse position to canvas bounds
+            const clampedMouseX = Math.max(0, Math.min(canvas.width, mouseX));
+            const clampedMouseY = Math.max(0, Math.min(canvas.height, mouseY));
+            
+            // Calculate world position
+            const worldPos = canvasToWorld(clampedMouseX, clampedMouseY);
             
             // Update anchor position
             anchors[draggedAnchor].position.x = worldPos.x;
             anchors[draggedAnchor].position.z = worldPos.z;
+            
+            // If near edge, expand bounds before updating
+            if (shouldExpandBounds) {
+                const expandAmount = 2.0; // meters
+                if (mouseX < edgeThreshold) {
+                    plotBounds.minX -= expandAmount;
+                } else if (mouseX > canvas.width - edgeThreshold) {
+                    plotBounds.maxX += expandAmount;
+                }
+                if (mouseY < edgeThreshold) {
+                    plotBounds.maxZ += expandAmount;
+                } else if (mouseY > canvas.height - edgeThreshold) {
+                    plotBounds.minZ -= expandAmount;
+                }
+            }
+            
+            // Update plot bounds to include the new position
+            updatePlotBounds();
             
             // Redraw plot
             drawPlot();
