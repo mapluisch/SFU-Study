@@ -80,7 +80,25 @@ public class WebAnchorController : MonoBehaviour
     {
         public List<int> pathIndices;
         public List<Vector3Data> pathPositions;
+        public List<ColorData> pathColors;
         public bool hasPath;
+    }
+
+    [System.Serializable]
+    public class ColorData
+    {
+        public float r;
+        public float g;
+        public float b;
+        public float a;
+
+        public ColorData(Color color)
+        {
+            r = color.r;
+            g = color.g;
+            b = color.b;
+            a = color.a;
+        }
     }
 
     void Start()
@@ -555,15 +573,23 @@ public class WebAnchorController : MonoBehaviour
 
                 // Convert Vector3 positions to Vector3Data
                 var vector3DataPositions = new List<Vector3Data>();
-                foreach (var position in pathPositions)
+                var colorDataList = new List<ColorData>();
+
+                for (int i = 0; i < pathPositions.Count; i++)
                 {
-                    vector3DataPositions.Add(new Vector3Data(position));
+                    vector3DataPositions.Add(new Vector3Data(pathPositions[i]));
+
+                    // Calculate color gradient from start (green) to end (red)
+                    float t = (float)i / (pathPositions.Count - 1);
+                    Color color = Color.Lerp(Color.green, Color.red, t);
+                    colorDataList.Add(new ColorData(color));
                 }
 
                 randomPathData = new RandomPathData
                 {
                     pathIndices = pathIndices,
                     pathPositions = vector3DataPositions,
+                    pathColors = colorDataList,
                     hasPath = true
                 };
             }
@@ -573,6 +599,7 @@ public class WebAnchorController : MonoBehaviour
                 {
                     pathIndices = new List<int>(),
                     pathPositions = new List<Vector3Data>(),
+                    pathColors = new List<ColorData>(),
                     hasPath = false
                 };
             }
@@ -1334,25 +1361,43 @@ public class WebAnchorController : MonoBehaviour
             drawPlot();
         }
         
-        // Draw random path with arrows
+        // Draw random path with color gradient
         function drawRandomPath() {
             if (!ctx || !randomPath || !randomPath.hasPath || randomPath.pathPositions.length < 2) return;
             
-            ctx.strokeStyle = '#28a745';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4;
             ctx.setLineDash([]);
             
-            // Draw the path line
-            ctx.beginPath();
-            for (let i = 0; i < randomPath.pathPositions.length; i++) {
-                const pos = worldToCanvas(randomPath.pathPositions[i].x, randomPath.pathPositions[i].z);
-                if (i === 0) {
-                    ctx.moveTo(pos.x, pos.y);
+            // Draw the path with color gradient
+            for (let i = 0; i < randomPath.pathPositions.length - 1; i++) {
+                const startPos = worldToCanvas(randomPath.pathPositions[i].x, randomPath.pathPositions[i].z);
+                const endPos = worldToCanvas(randomPath.pathPositions[i + 1].x, randomPath.pathPositions[i + 1].z);
+                
+                // Get colors for this segment
+                let startColor, endColor;
+                if (randomPath.pathColors && randomPath.pathColors.length > i) {
+                    startColor = randomPath.pathColors[i];
+                    endColor = randomPath.pathColors[i + 1];
                 } else {
-                    ctx.lineTo(pos.x, pos.y);
+                    // Fallback: calculate gradient manually
+                    const t1 = i / (randomPath.pathPositions.length - 1);
+                    const t2 = (i + 1) / (randomPath.pathPositions.length - 1);
+                    startColor = { r: 0, g: 1, b: 0, a: 1 }; // Green
+                    endColor = { r: 1, g: 0, b: 0, a: 1 };   // Red
                 }
+                
+                // Create gradient for this segment
+                const gradient = ctx.createLinearGradient(startPos.x, startPos.y, endPos.x, endPos.y);
+                gradient.addColorStop(0, `rgba(${Math.round(startColor.r * 255)}, ${Math.round(startColor.g * 255)}, ${Math.round(startColor.b * 255)}, ${startColor.a})`);
+                gradient.addColorStop(1, `rgba(${Math.round(endColor.r * 255)}, ${Math.round(endColor.g * 255)}, ${Math.round(endColor.b * 255)}, ${endColor.a})`);
+                
+                // Draw this segment
+                ctx.strokeStyle = gradient;
+                ctx.beginPath();
+                ctx.moveTo(startPos.x, startPos.y);
+                ctx.lineTo(endPos.x, endPos.y);
+                ctx.stroke();
             }
-            ctx.stroke();
             
             // Draw arrows on the path
             drawPathArrows();
@@ -1362,9 +1407,8 @@ public class WebAnchorController : MonoBehaviour
         function drawPathArrows() {
             if (!ctx || !randomPath || randomPath.pathPositions.length < 2) return;
             
-            ctx.fillStyle = '#28a745';
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 2;
             
             for (let i = 0; i < randomPath.pathPositions.length - 1; i++) {
                 const startPos = worldToCanvas(randomPath.pathPositions[i].x, randomPath.pathPositions[i].z);
@@ -1379,19 +1423,32 @@ public class WebAnchorController : MonoBehaviour
                 // Calculate arrow direction
                 const angle = Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x);
                 
-                // Draw arrow
-                drawArrow(arrowPos.x, arrowPos.y, angle);
+                // Get color for this arrow (use the color at the start of the segment)
+                let arrowColor;
+                if (randomPath.pathColors && randomPath.pathColors.length > i) {
+                    const color = randomPath.pathColors[i];
+                    arrowColor = `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, ${color.a})`;
+                } else {
+                    arrowColor = '#28a745'; // Fallback to green
+                }
+                
+                // Draw arrow with gradient color
+                drawArrow(arrowPos.x, arrowPos.y, angle, arrowColor);
             }
         }
         
         // Draw a single arrow
-        function drawArrow(x, y, angle) {
+        function drawArrow(x, y, angle, color = '#28a745') {
             const arrowLength = 12;
             const arrowAngle = Math.PI / 6; // 30 degrees
             
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
             
             ctx.beginPath();
             ctx.moveTo(0, 0);

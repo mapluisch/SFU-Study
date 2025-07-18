@@ -122,7 +122,19 @@ public class FixedPath : MonoBehaviour
         randomPathLine.positionCount = 0;
         randomPathLine.useWorldSpace = true;
         randomPathLine.startColor = Color.green;
-        randomPathLine.endColor = Color.green;
+        randomPathLine.endColor = Color.red;
+
+        // Enable color gradient
+        randomPathLine.colorGradient = new Gradient();
+        GradientColorKey[] colorKeys = new GradientColorKey[2];
+        colorKeys[0] = new GradientColorKey(Color.green, 0.0f);
+        colorKeys[1] = new GradientColorKey(Color.red, 1.0f);
+
+        GradientAlphaKey[] alphaKeys = new GradientAlphaKey[2];
+        alphaKeys[0] = new GradientAlphaKey(1.0f, 0.0f);
+        alphaKeys[1] = new GradientAlphaKey(1.0f, 1.0f);
+
+        randomPathLine.colorGradient.SetKeys(colorKeys, alphaKeys);
 
         // Set up save file path
         saveFilePath = Path.Combine(Application.persistentDataPath, "spatial_path.json");
@@ -518,35 +530,47 @@ public class FixedPath : MonoBehaviour
         path.Add(currentAnchor);
         availableAnchors.Remove(currentAnchor);
 
-        // Generate path sequence
-        for (int step = 1; step < randomPathLength; step++)
+        // Generate path sequence - continue until we have exactly randomPathLength segments
+        int attempts = 0;
+        int maxTotalAttempts = randomPathLength * maxAttemptsPerAnchor;
+
+        while (path.Count < randomPathLength + 1 && attempts < maxTotalAttempts) // +1 because we need n+1 anchors for n segments
         {
-            Debug.Log($"Step {step}: Current anchor {currentAnchor}, Available anchors: [{string.Join(", ", availableAnchors)}]");
+            attempts++;
+            int currentStep = path.Count; // Current step is the number of anchors we have
 
             // Find valid next anchors (with distance and angle constraints)
             List<int> validNextAnchors = GetValidNextAnchorsWithAngleConstraint(currentAnchor, availableAnchors, path);
 
             if (validNextAnchors.Count == 0)
             {
-                Debug.Log($"No valid anchors in available list, trying all anchors...");
                 // If no valid next anchors with angle constraints, try to find any anchor within range
                 validNextAnchors = GetValidNextAnchorsWithAngleConstraint(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList(), path);
 
                 if (validNextAnchors.Count == 0)
                 {
-                    // If still no valid anchors, break the path
-                    Debug.LogWarning($"No valid next anchor found at step {step} (angle constraint: {minAngleDegrees}-{maxAngleDegrees}°)");
-                    Debug.LogWarning($"Current path: [{string.Join(" -> ", path)}]");
-                    break;
+                    // If still no valid anchors, try to relax constraints or restart
+                    Debug.LogWarning($"No valid next anchor found at step {currentStep} (attempt {attempts})");
+
+                    // Try to find any anchor that meets basic distance constraints
+                    List<int> basicValidAnchors = GetValidNextAnchors(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList());
+
+                    if (basicValidAnchors.Count > 0)
+                    {
+                        // Use basic distance-only validation
+                        validNextAnchors = basicValidAnchors;
+                    }
+                    else
+                    {
+                        // If even basic constraints fail, try any anchor except current
+                        validNextAnchors = Enumerable.Range(0, anchorPoints.Count).Where(i => i != currentAnchor).ToList();
+                    }
                 }
             }
-
-            Debug.Log($"Valid next anchors: [{string.Join(", ", validNextAnchors)}]");
 
             // Choose a random valid next anchor
             int nextAnchor = validNextAnchors[Random.Range(0, validNextAnchors.Count)];
             path.Add(nextAnchor);
-            Debug.Log($"Added anchor {nextAnchor} to path. New path: [{string.Join(" -> ", path)}]");
 
             // Update current anchor and available anchors
             currentAnchor = nextAnchor;
@@ -554,6 +578,11 @@ public class FixedPath : MonoBehaviour
             {
                 availableAnchors.Remove(nextAnchor);
             }
+        }
+
+        if (path.Count < randomPathLength + 1)
+        {
+            Debug.LogWarning($"Failed to generate complete path. Generated {path.Count - 1} segments out of {randomPathLength} requested.");
         }
 
         return path;
@@ -585,8 +614,6 @@ public class FixedPath : MonoBehaviour
         List<int> validAnchors = new List<int>();
         Vector3 currentPosition = anchorPositions[currentAnchor];
 
-        Debug.Log($"Checking {candidateAnchors.Count} candidates for anchor {currentAnchor} (path history: [{string.Join(" -> ", pathHistory)}])");
-
         foreach (int candidateIndex in candidateAnchors)
         {
             if (candidateIndex == currentAnchor) continue;
@@ -594,46 +621,31 @@ public class FixedPath : MonoBehaviour
             Vector3 candidatePosition = anchorPositions[candidateIndex];
             float distance = Vector3.Distance(currentPosition, candidatePosition);
 
-            Debug.Log($"  Candidate {candidateIndex}: distance={distance:F2} (range: {minDistanceBetweenAnchors}-{maxDistanceBetweenAnchors})");
-
             // Check distance constraint
             if (distance >= minDistanceBetweenAnchors && distance <= maxDistanceBetweenAnchors)
             {
-                Debug.Log($"    ✓ Distance OK");
-
                 // Check if this would create an invalid path (revisiting same anchor without others in between)
                 if (WouldCreateInvalidPath(pathHistory, currentAnchor, candidateIndex))
                 {
-                    Debug.Log($"    ✗ Invalid path (would revisit)");
                     continue;
                 }
 
                 // Check angle constraint (only if we have at least 2 anchors in the path)
                 if (pathHistory.Count >= 2)
                 {
-                    bool angleValid = IsValidAngle(pathHistory, currentAnchor, candidateIndex);
-                    Debug.Log($"    Angle constraint: {(angleValid ? "✓ PASS" : "✗ FAIL")}");
-                    if (angleValid)
+                    if (IsValidAngle(pathHistory, currentAnchor, candidateIndex))
                     {
                         validAnchors.Add(candidateIndex);
-                        Debug.Log($"    ✓ Added to valid list");
                     }
                 }
                 else
                 {
                     // No angle constraint for the first two anchors
-                    Debug.Log($"    No angle constraint (first two anchors)");
                     validAnchors.Add(candidateIndex);
-                    Debug.Log($"    ✓ Added to valid list");
                 }
-            }
-            else
-            {
-                Debug.Log($"    ✗ Distance constraint failed");
             }
         }
 
-        Debug.Log($"Valid anchors found: [{string.Join(", ", validAnchors)}]");
         return validAnchors;
     }
 
@@ -679,8 +691,6 @@ public class FixedPath : MonoBehaviour
         // Calculate angle in degrees
         float angle = Vector3.Angle(vector1, vector2);
 
-        Debug.Log($"      Angle calc: {previousAnchor}->{currentAnchor}->{candidateAnchor} = {angle:F1}° (valid: {minAngleDegrees}-{maxAngleDegrees}°)");
-
         // Check if angle is within the valid range
         return angle >= minAngleDegrees && angle <= maxAngleDegrees;
     }
@@ -702,6 +712,44 @@ public class FixedPath : MonoBehaviour
         // Update the line renderer
         randomPathLine.positionCount = pathPositions.Count;
         randomPathLine.SetPositions(pathPositions.ToArray());
+
+        // Apply color gradient from start to end
+        ApplyColorGradientToPath();
+    }
+
+    private void ApplyColorGradientToPath()
+    {
+        if (randomPathLine == null || pathPositions.Count < 2) return;
+
+        // Create color array for the gradient
+        Color[] colors = new Color[pathPositions.Count];
+
+        for (int i = 0; i < pathPositions.Count; i++)
+        {
+            // Calculate gradient from start (green) to end (red)
+            float t = (float)i / (pathPositions.Count - 1);
+            colors[i] = Color.Lerp(Color.green, Color.red, t);
+        }
+
+        // Apply colors to the line renderer
+        randomPathLine.startColor = colors[0];
+        randomPathLine.endColor = colors[colors.Length - 1];
+
+        // Set individual colors for each point if the line renderer supports it
+        if (randomPathLine.colorGradient != null)
+        {
+            Gradient gradient = new Gradient();
+            GradientColorKey[] colorKeys = new GradientColorKey[2];
+            colorKeys[0] = new GradientColorKey(Color.green, 0.0f);
+            colorKeys[1] = new GradientColorKey(Color.red, 1.0f);
+
+            GradientAlphaKey[] alphaKeys = new GradientAlphaKey[2];
+            alphaKeys[0] = new GradientAlphaKey(1.0f, 0.0f);
+            alphaKeys[1] = new GradientAlphaKey(1.0f, 1.0f);
+
+            gradient.SetKeys(colorKeys, alphaKeys);
+            randomPathLine.colorGradient = gradient;
+        }
     }
 
     public void ClearRandomPath()
@@ -731,6 +779,41 @@ public class FixedPath : MonoBehaviour
     public bool HasRandomPath()
     {
         return currentPath.Count > 0;
+    }
+
+    // Method to get random path data with color information for web UI
+    public string GetRandomPathDataForWeb()
+    {
+        if (currentPath.Count < 2) return "[]";
+
+        var pathData = new List<object>();
+
+        for (int i = 0; i < currentPath.Count; i++)
+        {
+            int anchorIndex = currentPath[i];
+            if (anchorIndex >= 0 && anchorIndex < anchorPositions.Count)
+            {
+                Vector3 position = anchorPositions[anchorIndex];
+
+                // Calculate color gradient from start (green) to end (red)
+                float t = (float)i / (currentPath.Count - 1);
+                Color color = Color.Lerp(Color.green, Color.red, t);
+
+                var anchorData = new
+                {
+                    index = anchorIndex,
+                    position = new { x = position.x, y = position.y, z = position.z },
+                    color = new { r = color.r, g = color.g, b = color.b, a = color.a },
+                    segmentIndex = i,
+                    isStart = i == 0,
+                    isEnd = i == currentPath.Count - 1
+                };
+
+                pathData.Add(anchorData);
+            }
+        }
+
+        return JsonUtility.ToJson(pathData);
     }
 
 

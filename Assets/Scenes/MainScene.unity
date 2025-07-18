@@ -387,8 +387,8 @@ MonoBehaviour:
   minDistanceBetweenAnchors: 0
   maxDistanceBetweenAnchors: 100
   maxAttemptsPerAnchor: 50
-  minAngleDegrees: 80
-  maxAngleDegrees: 110
+  minAngleDegrees: 85
+  maxAngleDegrees: 95
 --- !u!4 &674080318
 Transform:
   m_ObjectHideFlags: 0
