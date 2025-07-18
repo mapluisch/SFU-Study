@@ -664,6 +664,18 @@ public class WebAnchorController : MonoBehaviour
             padding-top: 20px;
         }
         
+        .path-toggle {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .path-toggle input[type=""checkbox""] {
+            width: 18px;
+            height: 18px;
+        }
+        
         .plot-container {
             position: relative;
             width: 100%;
@@ -687,39 +699,28 @@ public class WebAnchorController : MonoBehaviour
             text-align: center;
         }
         
-        .anchor-point {
+        .tooltip {
             position: absolute;
-            width: 12px;
-            height: 12px;
-            background: #007bff;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            cursor: grab;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            transition: all 0.2s ease;
-        }
-        
-        .anchor-point:hover {
-            background: #0056b3;
-            transform: translate(-50%, -50%) scale(1.2);
-        }
-        
-        .anchor-point.dragging {
-            cursor: grabbing;
-            z-index: 1000;
-        }
-        
-        .anchor-label {
-            position: absolute;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.9);
             color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
             white-space: nowrap;
             pointer-events: none;
-            transform: translateY(-20px);
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-width: 200px;
+        }
+        
+        .tooltip .anchor-id {
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .tooltip .status {
+            margin-top: 4px;
+            font-size: 11px;
         }
     </style>
 </head>
@@ -765,11 +766,15 @@ public class WebAnchorController : MonoBehaviour
         
         <div class=""visualization-section"">
             <h2>2D Anchor Visualization (X-Z Plane)</h2>
+            <div class=""path-toggle"">
+                <input type=""checkbox"" id=""showPath"" onchange=""togglePath()"">
+                <label for=""showPath"">Show anchor path (A0 → A1 → A2...)</label>
+            </div>
             <div class=""plot-container"">
                 <canvas id=""anchorPlot""></canvas>
             </div>
             <div class=""plot-info"">
-                Drag anchors to move them in the X-Z plane. Y position remains unchanged.
+                Drag anchors to move them in the X-Z plane. Y position remains unchanged. Scale: 1 Unity unit = 0.25 meters.
             </div>
         </div>
     </div>
@@ -781,6 +786,8 @@ public class WebAnchorController : MonoBehaviour
         let isDragging = false;
         let draggedAnchor = null;
         let dragOffset = { x: 0, y: 0 };
+        let showPath = false;
+        let tooltip = null;
         
         // Initialize canvas
         function initCanvas() {
@@ -804,19 +811,37 @@ public class WebAnchorController : MonoBehaviour
             canvas.addEventListener('mousemove', handleMouseMove);
             canvas.addEventListener('mouseup', handleMouseUp);
             canvas.addEventListener('mouseleave', handleMouseUp);
+            canvas.addEventListener('mouseover', handleMouseOver);
+            
+            // Create tooltip element
+            tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.style.display = 'none';
+            document.body.appendChild(tooltip);
         }
+        
+        // Scale factor: 1 Unity unit = 0.25 meters
+        const SCALE_FACTOR = 0.25;
         
         // Convert world coordinates to canvas coordinates
         function worldToCanvas(x, z) {
-            const canvasX = ((x - plotBounds.minX) / (plotBounds.maxX - plotBounds.minX)) * canvas.width;
-            const canvasY = canvas.height - ((z - plotBounds.minZ) / (plotBounds.maxZ - plotBounds.minZ)) * canvas.height;
+            // Scale the coordinates: Unity units to meters
+            const scaledX = x * SCALE_FACTOR;
+            const scaledZ = z * SCALE_FACTOR;
+            
+            const canvasX = ((scaledX - plotBounds.minX) / (plotBounds.maxX - plotBounds.minX)) * canvas.width;
+            const canvasY = canvas.height - ((scaledZ - plotBounds.minZ) / (plotBounds.maxZ - plotBounds.minZ)) * canvas.height;
             return { x: canvasX, y: canvasY };
         }
         
         // Convert canvas coordinates to world coordinates
         function canvasToWorld(canvasX, canvasY) {
-            const x = plotBounds.minX + (canvasX / canvas.width) * (plotBounds.maxX - plotBounds.minX);
-            const z = plotBounds.maxZ - (canvasY / canvas.height) * (plotBounds.maxZ - plotBounds.minZ);
+            const scaledX = plotBounds.minX + (canvasX / canvas.width) * (plotBounds.maxX - plotBounds.minX);
+            const scaledZ = plotBounds.maxZ - (canvasY / canvas.height) * (plotBounds.maxZ - plotBounds.minZ);
+            
+            // Convert back from meters to Unity units
+            const x = scaledX / SCALE_FACTOR;
+            const z = scaledZ / SCALE_FACTOR;
             return { x, z };
         }
         
@@ -835,18 +860,18 @@ public class WebAnchorController : MonoBehaviour
             ctx.strokeStyle = '#e9ecef';
             ctx.lineWidth = 1;
             
-            // Vertical grid lines
-            for (let x = plotBounds.minX; x <= plotBounds.maxX; x += 2) {
-                const canvasX = worldToCanvas(x, 0).x;
+            // Vertical grid lines (every 0.5 meters)
+            for (let x = plotBounds.minX; x <= plotBounds.maxX; x += 0.5) {
+                const canvasX = worldToCanvas(x / SCALE_FACTOR, 0).x;
                 ctx.beginPath();
                 ctx.moveTo(canvasX, 0);
                 ctx.lineTo(canvasX, canvas.height);
                 ctx.stroke();
             }
             
-            // Horizontal grid lines
-            for (let z = plotBounds.minZ; z <= plotBounds.maxZ; z += 2) {
-                const canvasY = worldToCanvas(0, z).y;
+            // Horizontal grid lines (every 0.5 meters)
+            for (let z = plotBounds.minZ; z <= plotBounds.maxZ; z += 0.5) {
+                const canvasY = worldToCanvas(0, z / SCALE_FACTOR).y;
                 ctx.beginPath();
                 ctx.moveTo(0, canvasY);
                 ctx.lineTo(canvas.width, canvasY);
@@ -871,8 +896,55 @@ public class WebAnchorController : MonoBehaviour
             ctx.lineTo(zAxisX, canvas.height);
             ctx.stroke();
             
+            // Draw meter labels on axes
+            ctx.fillStyle = '#495057';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            
+            // X axis labels
+            for (let x = Math.ceil(plotBounds.minX); x <= Math.floor(plotBounds.maxX); x += 1) {
+                if (x === 0) continue; // Skip origin
+                const canvasX = worldToCanvas(x / SCALE_FACTOR, 0).x;
+                ctx.fillText(`${x}m`, canvasX, xAxisY + 15);
+            }
+            
+            // Z axis labels
+            for (let z = Math.ceil(plotBounds.minZ); z <= Math.floor(plotBounds.maxZ); z += 1) {
+                if (z === 0) continue; // Skip origin
+                const canvasY = worldToCanvas(0, z / SCALE_FACTOR).y;
+                ctx.fillText(`${z}m`, zAxisX - 15, canvasY + 3);
+            }
+            
+            // Draw path if enabled
+            if (showPath && anchors.length > 1) {
+                drawPath();
+            }
+            
             // Draw anchor points
             drawAnchors();
+        }
+        
+        // Draw path connecting anchors in order
+        function drawPath() {
+            if (!ctx || anchors.length < 2) return;
+            
+            ctx.strokeStyle = '#28a745';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            for (let i = 0; i < anchors.length; i++) {
+                const pos = worldToCanvas(anchors[i].position.x, anchors[i].position.z);
+                if (i === 0) {
+                    ctx.moveTo(pos.x, pos.y);
+                } else {
+                    ctx.lineTo(pos.x, pos.y);
+                }
+            }
+            ctx.stroke();
+            
+            // Reset line style
+            ctx.setLineDash([]);
         }
         
         // Update plot bounds based on anchor positions
@@ -891,23 +963,29 @@ public class WebAnchorController : MonoBehaviour
                 maxZ = Math.max(maxZ, anchor.position.z);
             });
             
-            // Add padding
-            const padding = 2;
-            plotBounds.minX = minX - padding;
-            plotBounds.maxX = maxX + padding;
-            plotBounds.minZ = minZ - padding;
-            plotBounds.maxZ = maxZ + padding;
+            // Scale the bounds to meters
+            const scaledMinX = minX * SCALE_FACTOR;
+            const scaledMaxX = maxX * SCALE_FACTOR;
+            const scaledMinZ = minZ * SCALE_FACTOR;
+            const scaledMaxZ = maxZ * SCALE_FACTOR;
             
-            // Ensure minimum bounds
-            if (plotBounds.maxX - plotBounds.minX < 4) {
+            // Add padding (in meters)
+            const padding = 0.5; // 0.5 meters padding
+            plotBounds.minX = scaledMinX - padding;
+            plotBounds.maxX = scaledMaxX + padding;
+            plotBounds.minZ = scaledMinZ - padding;
+            plotBounds.maxZ = scaledMaxZ + padding;
+            
+            // Ensure minimum bounds (in meters)
+            if (plotBounds.maxX - plotBounds.minX < 1) {
                 const center = (plotBounds.maxX + plotBounds.minX) / 2;
-                plotBounds.minX = center - 2;
-                plotBounds.maxX = center + 2;
+                plotBounds.minX = center - 0.5;
+                plotBounds.maxX = center + 0.5;
             }
-            if (plotBounds.maxZ - plotBounds.minZ < 4) {
+            if (plotBounds.maxZ - plotBounds.minZ < 1) {
                 const center = (plotBounds.maxZ + plotBounds.minZ) / 2;
-                plotBounds.minZ = center - 2;
-                plotBounds.maxZ = center + 2;
+                plotBounds.minZ = center - 0.5;
+                plotBounds.maxZ = center + 0.5;
             }
         }
         
@@ -987,6 +1065,52 @@ public class WebAnchorController : MonoBehaviour
             isDragging = false;
             draggedAnchor = null;
             canvas.style.cursor = 'crosshair';
+        }
+        
+        function handleMouseOver(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Check if hovering over an anchor
+            for (let i = 0; i < anchors.length; i++) {
+                const anchor = anchors[i];
+                const anchorPos = worldToCanvas(anchor.position.x, anchor.position.z);
+                const distance = Math.sqrt((mouseX - anchorPos.x) ** 2 + (mouseY - anchorPos.y) ** 2);
+                
+                if (distance < 10) {
+                    showTooltip(e, anchor, i);
+                    return;
+                }
+            }
+            
+            hideTooltip();
+        }
+        
+        function showTooltip(e, anchor, index) {
+            if (!tooltip) return;
+            
+            tooltip.innerHTML = `
+                <div class=""anchor-id"">Anchor ${anchor.id}</div>
+                <div class=""status"">Status: ${anchor.trackingState}</div>
+                <div class=""status"">Position: (${anchor.position.x.toFixed(2)}, ${anchor.position.y.toFixed(2)}, ${anchor.position.z.toFixed(2)})</div>
+            `;
+            
+            tooltip.style.left = (e.pageX + 10) + 'px';
+            tooltip.style.top = (e.pageY - 10) + 'px';
+            tooltip.style.display = 'block';
+        }
+        
+        function hideTooltip() {
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        }
+        
+        // Toggle path visibility
+        function togglePath() {
+            showPath = document.getElementById('showPath').checked;
+            drawPlot();
         }
         
         // Update anchor position in Unity after drag
