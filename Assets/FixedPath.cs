@@ -34,8 +34,8 @@ public class FixedPath : MonoBehaviour
     [SerializeField] private float minDistanceBetweenAnchors = 1.0f;
     [SerializeField] private float maxDistanceBetweenAnchors = 5.0f;
     [SerializeField] private int maxAttemptsPerAnchor = 50;
-    [SerializeField] private float minAngleDegrees = 80.0f;
-    [SerializeField] private float maxAngleDegrees = 110.0f;
+    [SerializeField] private float minAngleDegrees = 85.0f;
+    [SerializeField] private float maxAngleDegrees = 95.0f;
 
     private List<GameObject> anchorPoints = new List<GameObject>();
     private List<Vector3> anchorPositions = new List<Vector3>();
