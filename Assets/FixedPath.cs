@@ -6,6 +6,9 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.InputSystem;
 using System.IO;
 using System.Linq;
+using Unity.XR.CoreUtils;
+using UnityEngine.XR.OpenXR;
+using MagicLeap.OpenXR.Features.MarkerUnderstanding;
 
 public class FixedPath : MonoBehaviour
 {
@@ -37,6 +40,10 @@ public class FixedPath : MonoBehaviour
     [SerializeField] private float minAngleDegrees = 85.0f;
     [SerializeField] private float maxAngleDegrees = 95.0f;
     [SerializeField] private bool enforceFirstTurnAngle = true;
+    [SerializeField] private bool useMarker = false;
+    [SerializeField] private string targetMarkerId = "START";
+    [SerializeField] private ArucoType arucoType = ArucoType.Dictionary_5x5_50;
+    [SerializeField] private MarkerDetectorProfile detectorProfile = MarkerDetectorProfile.Default;
 
     private List<GameObject> anchorPoints = new List<GameObject>();
     private List<Vector3> anchorPositions = new List<Vector3>();
@@ -48,6 +55,15 @@ public class FixedPath : MonoBehaviour
     private List<int> currentPath = new List<int>();
     private List<Vector3> pathPositions = new List<Vector3>();
     private LineRenderer randomPathLine;
+
+    // Marker tracking data
+    private XROrigin xrOrigin;
+    private MagicLeapMarkerUnderstandingFeature markerFeature;
+    private MarkerDetectorSettings detectorSettings;
+    private bool markerDetected = false;
+    private Vector3 markerPosition = Vector3.zero;
+    private Quaternion markerRotation = Quaternion.identity;
+    private float markerSize = 0.01f;
 
     // File path for saving anchor data
     private string saveFilePath;
@@ -66,10 +82,20 @@ public class FixedPath : MonoBehaviour
         }
     }
 
+    void OnDestroy()
+    {
+        // Clean up marker tracking
+        if (markerFeature != null)
+        {
+            markerFeature.DestroyAllMarkerDetectors();
+        }
+    }
+
     void Start()
     {
         InitializeControllers();
         InitializePathLine();
+        InitializeMarkerTracking();
         LoadSavedPath();
 
         // Set up editor camera if not assigned
@@ -141,6 +167,146 @@ public class FixedPath : MonoBehaviour
         saveFilePath = Path.Combine(Application.persistentDataPath, "spatial_path.json");
     }
 
+    void InitializeMarkerTracking()
+    {
+        if (!useMarker) return;
+
+        // Find XR Origin
+        xrOrigin = FindAnyObjectByType<XROrigin>();
+        if (xrOrigin == null)
+        {
+            Debug.LogError("No XR Origin found. Marker tracking requires XR Origin. Disabling marker tracking.");
+            useMarker = false;
+            return;
+        }
+
+        // Get the marker understanding feature
+        markerFeature = OpenXRSettings.Instance.GetFeature<MagicLeapMarkerUnderstandingFeature>();
+        if (markerFeature == null || !markerFeature.enabled)
+        {
+            Debug.LogError("Magic Leap 2 Marker Understanding OpenXR Feature is missing or disabled. Disabling marker tracking.");
+            useMarker = false;
+            return;
+        }
+
+        // Create marker detector settings
+        detectorSettings = new MarkerDetectorSettings();
+        detectorSettings.QRSettings.EstimateQRLength = true;
+        detectorSettings.ArucoSettings.EstimateArucoLength = true;
+        detectorSettings.ArucoSettings.ArucoType = arucoType;
+        detectorSettings.MarkerDetectorProfile = detectorProfile;
+
+        // Create QR Code detector
+        detectorSettings.MarkerType = MarkerType.QR;
+        markerFeature.CreateMarkerDetector(detectorSettings);
+
+        // Create ArUco detector
+        detectorSettings.MarkerType = MarkerType.Aruco;
+        markerFeature.CreateMarkerDetector(detectorSettings);
+
+        Debug.Log("Marker tracking initialized. Looking for marker with ID: " + targetMarkerId);
+    }
+
+    void UpdateMarkerTracking()
+    {
+        if (markerFeature == null) return;
+
+        // Update the marker detectors
+        markerFeature.UpdateMarkerDetectors();
+
+        // Check all detectors for our target marker
+        for (int i = 0; i < markerFeature.MarkerDetectors.Count; i++)
+        {
+            if (markerFeature.MarkerDetectors[i].Status == MarkerDetectorStatus.Ready)
+            {
+                MarkerDetector currentDetector = markerFeature.MarkerDetectors[i];
+                CheckDetectorForTargetMarker(currentDetector);
+            }
+        }
+    }
+
+    void CheckDetectorForTargetMarker(MarkerDetector detector)
+    {
+        for (int i = 0; i < detector.Data.Count; i++)
+        {
+            string id = "";
+            var data = detector.Data[i];
+
+            switch (detector.Settings.MarkerType)
+            {
+                case MarkerType.Aruco:
+                    id = data.MarkerNumber.ToString();
+                    break;
+                case MarkerType.QR:
+                    id = data.MarkerString;
+                    break;
+                case MarkerType.UPCA:
+                    continue; // Skip UPCA markers
+            }
+
+            // Check if this is our target marker
+            if (id == targetMarkerId && data.MarkerPose.HasValue)
+            {
+                Transform originTransform = xrOrigin.CameraFloorOffsetObject.transform;
+
+                // Convert marker pose to world coordinates
+                markerPosition = originTransform.TransformPoint(data.MarkerPose.Value.position);
+                markerRotation = originTransform.rotation * data.MarkerPose.Value.rotation;
+                markerSize = data.MarkerLength;
+
+                if (!markerDetected)
+                {
+                    markerDetected = true;
+                    Debug.Log($"Target marker '{targetMarkerId}' detected at position: {markerPosition}");
+
+                    // If we have no anchors yet, create the first anchor at the marker position
+                    if (anchorPoints.Count == 0)
+                    {
+                        CreateAnchorPointAtMarker();
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    void CreateAnchorPointAtMarker()
+    {
+        if (!markerDetected) return;
+
+        // Create anchor point at marker position with marker rotation
+        GameObject anchorPoint = Instantiate(anchorPointPrefab, markerPosition, markerRotation, anchorPointParent);
+        anchorPoint.name = $"AnchorPoint_{anchorPoints.Count}";
+
+        // Add to lists
+        anchorPoints.Add(anchorPoint);
+        anchorPositions.Add(markerPosition);
+
+        // Save the path after adding a new point
+        SavePath();
+
+        Debug.Log($"Created anchor point {anchorPoints.Count} at marker position: {markerPosition}");
+    }
+
+    Vector3 TransformPositionRelativeToMarker(Vector3 worldPosition)
+    {
+        if (!markerDetected) return worldPosition;
+
+        // Convert world position to marker-relative coordinates
+        Vector3 relativePosition = markerRotation * Quaternion.Inverse(markerRotation) * (worldPosition - markerPosition);
+
+        // Apply marker rotation to get the transformed position
+        return markerPosition + markerRotation * relativePosition;
+    }
+
+    Quaternion TransformRotationRelativeToMarker(Quaternion worldRotation)
+    {
+        if (!markerDetected) return worldRotation;
+
+        // Transform the rotation relative to the marker's orientation
+        return markerRotation * worldRotation;
+    }
+
     void Update()
     {
         // Check for trigger input
@@ -170,6 +336,12 @@ public class FixedPath : MonoBehaviour
         if (Application.isEditor && enableKeyboardInput)
         {
             HandleKeyboardInput();
+        }
+
+        // Update marker tracking
+        if (useMarker)
+        {
+            UpdateMarkerTracking();
         }
 
         // Update path line
@@ -262,6 +434,13 @@ public class FixedPath : MonoBehaviour
         Vector3 controllerPosition = controller.transform.position;
         Quaternion controllerRotation = controller.transform.rotation;
 
+        // If using marker, transform the position relative to marker orientation
+        if (useMarker && markerDetected)
+        {
+            controllerPosition = TransformPositionRelativeToMarker(controllerPosition);
+            controllerRotation = TransformRotationRelativeToMarker(controllerRotation);
+        }
+
         // Create anchor point at controller position
         GameObject anchorPoint = Instantiate(anchorPointPrefab, controllerPosition, controllerRotation, anchorPointParent);
         anchorPoint.name = $"AnchorPoint_{anchorPoints.Count}";
@@ -283,6 +462,13 @@ public class FixedPath : MonoBehaviour
         // Create anchor point at camera position
         Vector3 cameraPosition = editorCamera.position;
         Quaternion cameraRotation = editorCamera.rotation;
+
+        // If using marker, transform the position relative to marker orientation
+        if (useMarker && markerDetected)
+        {
+            cameraPosition = TransformPositionRelativeToMarker(cameraPosition);
+            cameraRotation = TransformRotationRelativeToMarker(cameraRotation);
+        }
 
         GameObject anchorPoint = Instantiate(anchorPointPrefab, cameraPosition, cameraRotation);
         anchorPoint.name = $"AnchorPoint_{anchorPoints.Count}";
@@ -828,6 +1014,32 @@ public class FixedPath : MonoBehaviour
         }
 
         return JsonUtility.ToJson(pathData);
+    }
+
+    // Public methods to access marker information
+    public bool IsMarkerDetected()
+    {
+        return markerDetected;
+    }
+
+    public Vector3 GetMarkerPosition()
+    {
+        return markerPosition;
+    }
+
+    public Quaternion GetMarkerRotation()
+    {
+        return markerRotation;
+    }
+
+    public bool IsUsingMarker()
+    {
+        return useMarker;
+    }
+
+    public string GetTargetMarkerId()
+    {
+        return targetMarkerId;
     }
 
 
