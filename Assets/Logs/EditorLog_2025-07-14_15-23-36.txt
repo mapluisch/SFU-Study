@@ -1,0 +1,19 @@
+Unity Editor session started at 7/14/2025 3:23:36 PM
+
+7/14/2025 3:28:41 PM: [Error] Assets/PathGenerator.cs(50,22): error CS1061: 'LineRenderer' does not contain a definition for 'color' and no accessible extension method 'color' accepting a first argument of type 'LineRenderer' could be found (are you missing a using directive or an assembly reference?)
+
+
+7/14/2025 3:28:41 PM: [Error] Assets/PathGenerator.cs(172,26): error CS1061: 'LineRenderer' does not contain a definition for 'color' and no accessible extension method 'color' accepting a first argument of type 'LineRenderer' could be found (are you missing a using directive or an assembly reference?)
+
+
+7/14/2025 3:28:41 PM: [Warning] Import Error Code:(4)
+Message: Build asset version error: assets/logs/editorlog_2025-07-14_15-23-36.txt in SourceAssetDB has modification time of '2025-07-14T13:23:36Z' while content on disk has modification time of '2025-07-14T13:28:41Z'
+
+
+
+7/14/2025 3:44:42 PM: [Warning] External Code Editor application path does not exist (/Applications/Cursor.app)! Please select a different application
+UnityEditor.DefaultExternalCodeEditor:OpenProject (string,int,int)
+Unity.CodeEditor.CodeEditor:OnOpenAsset (int,int,int) (at /Users/bokken/build/output/unity/unity/Editor/Mono/CodeEditor/CodeEditor.cs:93)
+UnityEngine.GUIUtility:ProcessEvent (int,intptr,bool&) (at /Users/bokken/build/output/unity/unity/Modules/IMGUI/GUIUtility.cs:203)
+
+

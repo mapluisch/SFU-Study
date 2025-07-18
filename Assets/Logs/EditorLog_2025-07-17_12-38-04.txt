@@ -1,0 +1,8 @@
+Unity Editor session started at 7/17/2025 12:38:04 PM
+
+7/17/2025 12:38:14 PM: [Warning] External Code Editor application path does not exist (/Applications/Cursor.app)! Please select a different application
+UnityEditor.DefaultExternalCodeEditor:OpenProject (string,int,int)
+Unity.CodeEditor.CodeEditor:OnOpenAsset (int,int,int) (at /Users/bokken/build/output/unity/unity/Editor/Mono/CodeEditor/CodeEditor.cs:93)
+UnityEngine.GUIUtility:ProcessEvent (int,intptr,bool&) (at /Users/bokken/build/output/unity/unity/Modules/IMGUI/GUIUtility.cs:203)
+
+
