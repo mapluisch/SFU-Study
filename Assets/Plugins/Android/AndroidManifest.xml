@@ -24,4 +24,5 @@
   <uses-permission android:name="com.magicleap.permission.MARKER_TRACKING" />
   <uses-permission android:name="com.magicleap.permission.SPACE_MANAGER" />
   <uses-permission android:name="com.magicleap.permission.HAND_TRACKING" />
+  <uses-permission android:name="com.magicleap.permission.USB_SIPSOP" />
 </manifest>
