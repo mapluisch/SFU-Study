@@ -657,6 +657,70 @@ public class WebAnchorController : MonoBehaviour
         .status-tracking { background-color: #28a745; }
         .status-limited { background-color: #ffc107; }
         .status-none { background-color: #dc3545; }
+        
+        .visualization-section {
+            margin-top: 30px;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+        
+        .plot-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+            margin-top: 15px;
+        }
+        
+        #anchorPlot {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        
+        .plot-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .anchor-point {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #007bff;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: grab;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+        
+        .anchor-point:hover {
+            background: #0056b3;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+        
+        .anchor-point.dragging {
+            cursor: grabbing;
+            z-index: 1000;
+        }
+        
+        .anchor-label {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            white-space: nowrap;
+            pointer-events: none;
+            transform: translateY(-20px);
+        }
     </style>
 </head>
 <body>
@@ -698,16 +762,261 @@ public class WebAnchorController : MonoBehaviour
         <div id=""anchorsContainer"">
             <div style=""text-align: center; color: #666;"">Loading anchors...</div>
         </div>
+        
+        <div class=""visualization-section"">
+            <h2>2D Anchor Visualization (X-Z Plane)</h2>
+            <div class=""plot-container"">
+                <canvas id=""anchorPlot""></canvas>
+            </div>
+            <div class=""plot-info"">
+                Drag anchors to move them in the X-Z plane. Y position remains unchanged.
+            </div>
+        </div>
     </div>
 
     <script>
         let anchors = [];
+        let canvas, ctx;
+        let plotBounds = { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
+        let isDragging = false;
+        let draggedAnchor = null;
+        let dragOffset = { x: 0, y: 0 };
+        
+        // Initialize canvas
+        function initCanvas() {
+            canvas = document.getElementById('anchorPlot');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+                drawPlot();
+            });
+            
+            // Add mouse event listeners
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+        }
+        
+        // Convert world coordinates to canvas coordinates
+        function worldToCanvas(x, z) {
+            const canvasX = ((x - plotBounds.minX) / (plotBounds.maxX - plotBounds.minX)) * canvas.width;
+            const canvasY = canvas.height - ((z - plotBounds.minZ) / (plotBounds.maxZ - plotBounds.minZ)) * canvas.height;
+            return { x: canvasX, y: canvasY };
+        }
+        
+        // Convert canvas coordinates to world coordinates
+        function canvasToWorld(canvasX, canvasY) {
+            const x = plotBounds.minX + (canvasX / canvas.width) * (plotBounds.maxX - plotBounds.minX);
+            const z = plotBounds.maxZ - (canvasY / canvas.height) * (plotBounds.maxZ - plotBounds.minZ);
+            return { x, z };
+        }
+        
+        // Draw the plot grid and axes
+        function drawPlot() {
+            if (!ctx) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#e9ecef';
+            ctx.lineWidth = 1;
+            
+            // Vertical grid lines
+            for (let x = plotBounds.minX; x <= plotBounds.maxX; x += 2) {
+                const canvasX = worldToCanvas(x, 0).x;
+                ctx.beginPath();
+                ctx.moveTo(canvasX, 0);
+                ctx.lineTo(canvasX, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Horizontal grid lines
+            for (let z = plotBounds.minZ; z <= plotBounds.maxZ; z += 2) {
+                const canvasY = worldToCanvas(0, z).y;
+                ctx.beginPath();
+                ctx.moveTo(0, canvasY);
+                ctx.lineTo(canvas.width, canvasY);
+                ctx.stroke();
+            }
+            
+            // Draw axes
+            ctx.strokeStyle = '#495057';
+            ctx.lineWidth = 2;
+            
+            // X axis (Z = 0)
+            const xAxisY = worldToCanvas(0, 0).y;
+            ctx.beginPath();
+            ctx.moveTo(0, xAxisY);
+            ctx.lineTo(canvas.width, xAxisY);
+            ctx.stroke();
+            
+            // Z axis (X = 0)
+            const zAxisX = worldToCanvas(0, 0).x;
+            ctx.beginPath();
+            ctx.moveTo(zAxisX, 0);
+            ctx.lineTo(zAxisX, canvas.height);
+            ctx.stroke();
+            
+            // Draw anchor points
+            drawAnchors();
+        }
+        
+        // Update plot bounds based on anchor positions
+        function updatePlotBounds() {
+            if (!anchors.length) return;
+            
+            let minX = anchors[0].position.x;
+            let maxX = anchors[0].position.x;
+            let minZ = anchors[0].position.z;
+            let maxZ = anchors[0].position.z;
+            
+            anchors.forEach(anchor => {
+                minX = Math.min(minX, anchor.position.x);
+                maxX = Math.max(maxX, anchor.position.x);
+                minZ = Math.min(minZ, anchor.position.z);
+                maxZ = Math.max(maxZ, anchor.position.z);
+            });
+            
+            // Add padding
+            const padding = 2;
+            plotBounds.minX = minX - padding;
+            plotBounds.maxX = maxX + padding;
+            plotBounds.minZ = minZ - padding;
+            plotBounds.maxZ = maxZ + padding;
+            
+            // Ensure minimum bounds
+            if (plotBounds.maxX - plotBounds.minX < 4) {
+                const center = (plotBounds.maxX + plotBounds.minX) / 2;
+                plotBounds.minX = center - 2;
+                plotBounds.maxX = center + 2;
+            }
+            if (plotBounds.maxZ - plotBounds.minZ < 4) {
+                const center = (plotBounds.maxZ + plotBounds.minZ) / 2;
+                plotBounds.minZ = center - 2;
+                plotBounds.maxZ = center + 2;
+            }
+        }
+        
+        // Draw all anchors on the plot
+        function drawAnchors() {
+            if (!ctx || !anchors.length) return;
+            
+            anchors.forEach((anchor, index) => {
+                const pos = worldToCanvas(anchor.position.x, anchor.position.z);
+                
+                // Draw anchor point
+                ctx.fillStyle = '#007bff';
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Draw anchor label
+                ctx.fillStyle = '#000';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`A${index}`, pos.x, pos.y - 10);
+            });
+        }
+        
+        // Mouse event handlers for drag and drop
+        function handleMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldPos = canvasToWorld(mouseX, mouseY);
+            
+            // Check if clicking on an anchor
+            for (let i = 0; i < anchors.length; i++) {
+                const anchor = anchors[i];
+                const anchorPos = worldToCanvas(anchor.position.x, anchor.position.z);
+                const distance = Math.sqrt((mouseX - anchorPos.x) ** 2 + (mouseY - anchorPos.y) ** 2);
+                
+                if (distance < 10) {
+                    isDragging = true;
+                    draggedAnchor = i;
+                    dragOffset.x = mouseX - anchorPos.x;
+                    dragOffset.y = mouseY - anchorPos.y;
+                    canvas.style.cursor = 'grabbing';
+                    break;
+                }
+            }
+        }
+        
+        function handleMouseMove(e) {
+            if (!isDragging || draggedAnchor === null) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldPos = canvasToWorld(mouseX, mouseY);
+            
+            // Update anchor position
+            anchors[draggedAnchor].position.x = worldPos.x;
+            anchors[draggedAnchor].position.z = worldPos.z;
+            
+            // Redraw plot
+            drawPlot();
+        }
+        
+        function handleMouseUp() {
+            if (isDragging && draggedAnchor !== null) {
+                // Update the anchor in Unity
+                updateAnchorFromPlot(draggedAnchor);
+                // Update plot bounds after dropping anchor
+                updatePlotBounds();
+                drawPlot();
+            }
+            
+            isDragging = false;
+            draggedAnchor = null;
+            canvas.style.cursor = 'crosshair';
+        }
+        
+        // Update anchor position in Unity after drag
+        async function updateAnchorFromPlot(anchorIndex) {
+            const anchor = anchors[anchorIndex];
+            if (!anchor) return;
+            
+            try {
+                await fetch(`/api/anchor/${anchor.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: anchor.id,
+                        position: anchor.position,
+                        rotation: anchor.rotation
+                    })
+                });
+                console.log(`Updated anchor ${anchor.id} to position (${anchor.position.x}, ${anchor.position.y}, ${anchor.position.z})`);
+            } catch (error) {
+                console.error('Error updating anchor position:', error);
+            }
+        }
         
         async function refreshAnchors() {
             try {
                 const response = await fetch('/api/anchors');
                 anchors = await response.json();
                 displayAnchors();
+                updatePlotBounds(); // Update bounds based on new anchor positions
+                drawPlot(); // Redraw the plot with new anchor data
             } catch (error) {
                 console.error('Error fetching anchors:', error);
                 document.getElementById('anchorsContainer').innerHTML = 
@@ -852,6 +1161,12 @@ public class WebAnchorController : MonoBehaviour
                 console.error('Error deleting anchor:', error);
             }
         }
+        
+        // Initialize canvas when page loads
+        window.addEventListener('load', () => {
+            initCanvas();
+            drawPlot();
+        });
         
         // Auto-refresh every 10 seconds
         setInterval(refreshAnchors, 10000);
