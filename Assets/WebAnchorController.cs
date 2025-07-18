@@ -75,6 +75,14 @@ public class WebAnchorController : MonoBehaviour
         public QuaternionData rotation;
     }
 
+    [System.Serializable]
+    public class RandomPathData
+    {
+        public List<int> pathIndices;
+        public List<Vector3Data> pathPositions;
+        public bool hasPath;
+    }
+
     void Start()
     {
         // Set Unity to run in background
@@ -203,6 +211,9 @@ public class WebAnchorController : MonoBehaviour
                 break;
             case "/api/anchor":
                 await GetAnchorAsync(request, response);
+                break;
+            case "/api/random-path":
+                await GetRandomPathAsync(response);
                 break;
             default:
                 await SendResponseAsync(response, "Not found", 404);
@@ -522,7 +533,51 @@ public class WebAnchorController : MonoBehaviour
         await SendResponseAsync(response, "OK", 200);
     }
 
+    private async Task GetRandomPathAsync(HttpListenerResponse response)
+    {
+        RandomPathData randomPathData = null;
 
+        await UnityMainThreadDispatcher.Instance.EnqueueAsync(() =>
+        {
+            if (FixedPath.Instance == null)
+            {
+                Debug.LogWarning("WebAnchorController: FixedPath.Instance is null");
+                return;
+            }
+
+            if (FixedPath.Instance.HasRandomPath())
+            {
+                var pathIndices = FixedPath.Instance.GetCurrentRandomPath();
+                var pathPositions = FixedPath.Instance.GetRandomPathPositions();
+
+                // Convert Vector3 positions to Vector3Data
+                var vector3DataPositions = new List<Vector3Data>();
+                foreach (var position in pathPositions)
+                {
+                    vector3DataPositions.Add(new Vector3Data(position));
+                }
+
+                randomPathData = new RandomPathData
+                {
+                    pathIndices = pathIndices,
+                    pathPositions = vector3DataPositions,
+                    hasPath = true
+                };
+            }
+            else
+            {
+                randomPathData = new RandomPathData
+                {
+                    pathIndices = new List<int>(),
+                    pathPositions = new List<Vector3Data>(),
+                    hasPath = false
+                };
+            }
+        });
+
+        var json = JsonConvert.SerializeObject(randomPathData);
+        await SendResponseAsync(response, json, 200, "application/json");
+    }
 
     private async Task<string> ReadRequestBodyAsync(HttpListenerRequest request)
     {
@@ -770,6 +825,10 @@ public class WebAnchorController : MonoBehaviour
                 <input type=""checkbox"" id=""showPath"" onchange=""togglePath()"">
                 <label for=""showPath"">Show anchor path (A0 → A1 → A2...)</label>
             </div>
+            <div class=""path-toggle"">
+                <input type=""checkbox"" id=""showRandomPath"" onchange=""toggleRandomPath()"">
+                <label for=""showRandomPath"">Show random path (with arrows)</label>
+            </div>
             <div class=""plot-container"">
                 <canvas id=""anchorPlot""></canvas>
             </div>
@@ -780,12 +839,14 @@ public class WebAnchorController : MonoBehaviour
 
     <script>
         let anchors = [];
+        let randomPath = null;
         let canvas, ctx;
         let plotBounds = { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
         let isDragging = false;
         let draggedAnchor = null;
         let dragOffset = { x: 0, y: 0 };
         let showPath = false;
+        let showRandomPath = false;
         let tooltip = null;
         
         // Initialize canvas
@@ -935,6 +996,11 @@ public class WebAnchorController : MonoBehaviour
             // Draw path if enabled
             if (showPath && anchors.length > 1) {
                 drawPath();
+            }
+            
+            // Draw random path if enabled
+            if (showRandomPath && randomPath && randomPath.hasPath && randomPath.pathPositions.length > 1) {
+                drawRandomPath();
             }
             
             // Draw anchor points
@@ -1225,6 +1291,84 @@ public class WebAnchorController : MonoBehaviour
             drawPlot();
         }
         
+        // Toggle random path visibility
+        function toggleRandomPath() {
+            showRandomPath = document.getElementById('showRandomPath').checked;
+            drawPlot();
+        }
+        
+        // Draw random path with arrows
+        function drawRandomPath() {
+            if (!ctx || !randomPath || !randomPath.hasPath || randomPath.pathPositions.length < 2) return;
+            
+            ctx.strokeStyle = '#28a745';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([]);
+            
+            // Draw the path line
+            ctx.beginPath();
+            for (let i = 0; i < randomPath.pathPositions.length; i++) {
+                const pos = worldToCanvas(randomPath.pathPositions[i].x, randomPath.pathPositions[i].z);
+                if (i === 0) {
+                    ctx.moveTo(pos.x, pos.y);
+                } else {
+                    ctx.lineTo(pos.x, pos.y);
+                }
+            }
+            ctx.stroke();
+            
+            // Draw arrows on the path
+            drawPathArrows();
+        }
+        
+        // Draw arrows on the random path
+        function drawPathArrows() {
+            if (!ctx || !randomPath || randomPath.pathPositions.length < 2) return;
+            
+            ctx.fillStyle = '#28a745';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i < randomPath.pathPositions.length - 1; i++) {
+                const startPos = worldToCanvas(randomPath.pathPositions[i].x, randomPath.pathPositions[i].z);
+                const endPos = worldToCanvas(randomPath.pathPositions[i + 1].x, randomPath.pathPositions[i + 1].z);
+                
+                // Calculate arrow position (70% along the line)
+                const arrowPos = {
+                    x: startPos.x + (endPos.x - startPos.x) * 0.7,
+                    y: startPos.y + (endPos.y - startPos.y) * 0.7
+                };
+                
+                // Calculate arrow direction
+                const angle = Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x);
+                
+                // Draw arrow
+                drawArrow(arrowPos.x, arrowPos.y, angle);
+            }
+        }
+        
+        // Draw a single arrow
+        function drawArrow(x, y, angle) {
+            const arrowLength = 12;
+            const arrowAngle = Math.PI / 6; // 30 degrees
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-arrowLength, -arrowLength * Math.tan(arrowAngle));
+            ctx.lineTo(-arrowLength * 0.7, 0);
+            ctx.lineTo(-arrowLength, arrowLength * Math.tan(arrowAngle));
+            ctx.closePath();
+            
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
         // Update anchor position in Unity after drag
         async function updateAnchorFromPlot(anchorIndex) {
             const anchor = anchors[anchorIndex];
@@ -1257,6 +1401,18 @@ public class WebAnchorController : MonoBehaviour
                 console.error('Error fetching anchors:', error);
                 document.getElementById('anchorsContainer').innerHTML = 
                     '<div style=""text-align: center; color: #dc3545;"">Error loading anchors</div>';
+            }
+        }
+        
+        async function refreshRandomPath() {
+            try {
+                const response = await fetch('/api/random-path');
+                randomPath = await response.json();
+                if (showRandomPath) {
+                    drawPlot(); // Redraw the plot if random path is visible
+                }
+            } catch (error) {
+                console.error('Error fetching random path:', error);
             }
         }
         
@@ -1406,9 +1562,11 @@ public class WebAnchorController : MonoBehaviour
         
         // Auto-refresh every 10 seconds
         setInterval(refreshAnchors, 10000);
+        setInterval(refreshRandomPath, 10000);
         
         // Initial load
         refreshAnchors();
+        refreshRandomPath();
     </script>
 </body>
 </html>";
