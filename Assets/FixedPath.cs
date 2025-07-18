@@ -36,6 +36,7 @@ public class FixedPath : MonoBehaviour
     [SerializeField] private int maxAttemptsPerAnchor = 50;
     [SerializeField] private float minAngleDegrees = 85.0f;
     [SerializeField] private float maxAngleDegrees = 95.0f;
+    [SerializeField] private bool enforceFirstTurnAngle = true;
 
     private List<GameObject> anchorPoints = new List<GameObject>();
     private List<Vector3> anchorPositions = new List<Vector3>();
@@ -544,13 +545,14 @@ public class FixedPath : MonoBehaviour
 
             if (validNextAnchors.Count == 0)
             {
+                Debug.LogWarning($"No valid anchors found with angle constraints at step {currentStep}, trying all anchors...");
                 // If no valid next anchors with angle constraints, try to find any anchor within range
                 validNextAnchors = GetValidNextAnchorsWithAngleConstraint(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList(), path);
 
                 if (validNextAnchors.Count == 0)
                 {
                     // If still no valid anchors, try to relax constraints or restart
-                    Debug.LogWarning($"No valid next anchor found at step {currentStep} (attempt {attempts})");
+                    Debug.LogWarning($"No valid next anchor found at step {currentStep} (attempt {attempts}) - relaxing to distance-only constraints");
 
                     // Try to find any anchor that meets basic distance constraints
                     List<int> basicValidAnchors = GetValidNextAnchors(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList());
@@ -559,11 +561,13 @@ public class FixedPath : MonoBehaviour
                     {
                         // Use basic distance-only validation
                         validNextAnchors = basicValidAnchors;
+                        Debug.LogWarning($"Using distance-only constraints, found {basicValidAnchors.Count} candidates");
                     }
                     else
                     {
                         // If even basic constraints fail, try any anchor except current
                         validNextAnchors = Enumerable.Range(0, anchorPoints.Count).Where(i => i != currentAnchor).ToList();
+                        Debug.LogWarning($"Using any available anchor, found {validNextAnchors.Count} candidates");
                     }
                 }
             }
@@ -630,8 +634,16 @@ public class FixedPath : MonoBehaviour
                     continue;
                 }
 
-                // Check angle constraint (only if we have at least 2 anchors in the path)
-                if (pathHistory.Count >= 2)
+                // Check angle constraint
+                bool needsAngleCheck = pathHistory.Count >= 2;
+
+                // If enforceFirstTurnAngle is true, we need to check angle even for the first turn (anchors 0->1->2)
+                if (enforceFirstTurnAngle && pathHistory.Count == 2)
+                {
+                    needsAngleCheck = true;
+                }
+
+                if (needsAngleCheck)
                 {
                     if (IsValidAngle(pathHistory, currentAnchor, candidateIndex))
                     {
@@ -640,7 +652,7 @@ public class FixedPath : MonoBehaviour
                 }
                 else
                 {
-                    // No angle constraint for the first two anchors
+                    // No angle constraint for the first anchor or first two anchors (depending on setting)
                     validAnchors.Add(candidateIndex);
                 }
             }
@@ -690,6 +702,8 @@ public class FixedPath : MonoBehaviour
 
         // Calculate angle in degrees
         float angle = Vector3.Angle(vector1, vector2);
+
+        Debug.Log($"Angle check: {previousAnchor}->{currentAnchor}->{candidateAnchor} = {angle:F1}° (valid: {minAngleDegrees}-{maxAngleDegrees}°) - {(angle >= minAngleDegrees && angle <= maxAngleDegrees ? "VALID" : "INVALID")}");
 
         // Check if angle is within the valid range
         return angle >= minAngleDegrees && angle <= maxAngleDegrees;
