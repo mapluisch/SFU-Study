@@ -34,6 +34,8 @@ public class FixedPath : MonoBehaviour
     [SerializeField] private float minDistanceBetweenAnchors = 1.0f;
     [SerializeField] private float maxDistanceBetweenAnchors = 5.0f;
     [SerializeField] private int maxAttemptsPerAnchor = 50;
+    [SerializeField] private float minAngleDegrees = 80.0f;
+    [SerializeField] private float maxAngleDegrees = 110.0f;
 
     private List<GameObject> anchorPoints = new List<GameObject>();
     private List<Vector3> anchorPositions = new List<Vector3>();
@@ -519,25 +521,32 @@ public class FixedPath : MonoBehaviour
         // Generate path sequence
         for (int step = 1; step < randomPathLength; step++)
         {
-            // Find valid next anchors (within distance constraints)
-            List<int> validNextAnchors = GetValidNextAnchors(currentAnchor, availableAnchors);
+            Debug.Log($"Step {step}: Current anchor {currentAnchor}, Available anchors: [{string.Join(", ", availableAnchors)}]");
+
+            // Find valid next anchors (with distance and angle constraints)
+            List<int> validNextAnchors = GetValidNextAnchorsWithAngleConstraint(currentAnchor, availableAnchors, path);
 
             if (validNextAnchors.Count == 0)
             {
-                // If no valid next anchors, try to find any anchor within range
-                validNextAnchors = GetValidNextAnchors(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList());
+                Debug.Log($"No valid anchors in available list, trying all anchors...");
+                // If no valid next anchors with angle constraints, try to find any anchor within range
+                validNextAnchors = GetValidNextAnchorsWithAngleConstraint(currentAnchor, Enumerable.Range(0, anchorPoints.Count).ToList(), path);
 
                 if (validNextAnchors.Count == 0)
                 {
                     // If still no valid anchors, break the path
-                    Debug.LogWarning($"No valid next anchor found at step {step}");
+                    Debug.LogWarning($"No valid next anchor found at step {step} (angle constraint: {minAngleDegrees}-{maxAngleDegrees}°)");
+                    Debug.LogWarning($"Current path: [{string.Join(" -> ", path)}]");
                     break;
                 }
             }
 
+            Debug.Log($"Valid next anchors: [{string.Join(", ", validNextAnchors)}]");
+
             // Choose a random valid next anchor
             int nextAnchor = validNextAnchors[Random.Range(0, validNextAnchors.Count)];
             path.Add(nextAnchor);
+            Debug.Log($"Added anchor {nextAnchor} to path. New path: [{string.Join(" -> ", path)}]");
 
             // Update current anchor and available anchors
             currentAnchor = nextAnchor;
@@ -569,6 +578,111 @@ public class FixedPath : MonoBehaviour
         }
 
         return validAnchors;
+    }
+
+    private List<int> GetValidNextAnchorsWithAngleConstraint(int currentAnchor, List<int> candidateAnchors, List<int> pathHistory)
+    {
+        List<int> validAnchors = new List<int>();
+        Vector3 currentPosition = anchorPositions[currentAnchor];
+
+        Debug.Log($"Checking {candidateAnchors.Count} candidates for anchor {currentAnchor} (path history: [{string.Join(" -> ", pathHistory)}])");
+
+        foreach (int candidateIndex in candidateAnchors)
+        {
+            if (candidateIndex == currentAnchor) continue;
+
+            Vector3 candidatePosition = anchorPositions[candidateIndex];
+            float distance = Vector3.Distance(currentPosition, candidatePosition);
+
+            Debug.Log($"  Candidate {candidateIndex}: distance={distance:F2} (range: {minDistanceBetweenAnchors}-{maxDistanceBetweenAnchors})");
+
+            // Check distance constraint
+            if (distance >= minDistanceBetweenAnchors && distance <= maxDistanceBetweenAnchors)
+            {
+                Debug.Log($"    ✓ Distance OK");
+
+                // Check if this would create an invalid path (revisiting same anchor without others in between)
+                if (WouldCreateInvalidPath(pathHistory, currentAnchor, candidateIndex))
+                {
+                    Debug.Log($"    ✗ Invalid path (would revisit)");
+                    continue;
+                }
+
+                // Check angle constraint (only if we have at least 2 anchors in the path)
+                if (pathHistory.Count >= 2)
+                {
+                    bool angleValid = IsValidAngle(pathHistory, currentAnchor, candidateIndex);
+                    Debug.Log($"    Angle constraint: {(angleValid ? "✓ PASS" : "✗ FAIL")}");
+                    if (angleValid)
+                    {
+                        validAnchors.Add(candidateIndex);
+                        Debug.Log($"    ✓ Added to valid list");
+                    }
+                }
+                else
+                {
+                    // No angle constraint for the first two anchors
+                    Debug.Log($"    No angle constraint (first two anchors)");
+                    validAnchors.Add(candidateIndex);
+                    Debug.Log($"    ✓ Added to valid list");
+                }
+            }
+            else
+            {
+                Debug.Log($"    ✗ Distance constraint failed");
+            }
+        }
+
+        Debug.Log($"Valid anchors found: [{string.Join(", ", validAnchors)}]");
+        return validAnchors;
+    }
+
+    private bool WouldCreateInvalidPath(List<int> pathHistory, int currentAnchor, int candidateAnchor)
+    {
+        // Check if we're trying to go back to the same anchor without visiting others in between
+        // Look at the last few anchors in the path to see if we're creating a loop
+        if (pathHistory.Count >= 1)
+        {
+            // Check if the last anchor in the path would be: [someAnchor] -> currentAnchor -> candidateAnchor
+            // And if candidateAnchor is the same as someAnchor, that's invalid
+            int lastAnchorInPath = pathHistory[pathHistory.Count - 1];
+            if (candidateAnchor == lastAnchorInPath)
+            {
+                return true; // Invalid: going back to the same anchor immediately
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsValidAngle(List<int> pathHistory, int currentAnchor, int candidateAnchor)
+    {
+        // We need at least 2 anchors in the path to calculate an angle
+        if (pathHistory.Count < 2) return true;
+
+        // Get the three points: previous, current, and candidate
+        // previousAnchor should be the second-to-last anchor in the path
+        int previousAnchor = pathHistory[pathHistory.Count - 2];
+        Vector3 previousPos = anchorPositions[previousAnchor];
+        Vector3 currentPos = anchorPositions[currentAnchor];
+        Vector3 candidatePos = anchorPositions[candidateAnchor];
+
+        // Use X-Z positions for angle calculation (ignore Y)
+        Vector3 previousPosXZ = new Vector3(previousPos.x, 0, previousPos.z);
+        Vector3 currentPosXZ = new Vector3(currentPos.x, 0, currentPos.z);
+        Vector3 candidatePosXZ = new Vector3(candidatePos.x, 0, candidatePos.z);
+
+        // Calculate vectors in X-Z plane
+        Vector3 vector1 = (currentPosXZ - previousPosXZ).normalized;
+        Vector3 vector2 = (candidatePosXZ - currentPosXZ).normalized;
+
+        // Calculate angle in degrees
+        float angle = Vector3.Angle(vector1, vector2);
+
+        Debug.Log($"      Angle calc: {previousAnchor}->{currentAnchor}->{candidateAnchor} = {angle:F1}° (valid: {minAngleDegrees}-{maxAngleDegrees}°)");
+
+        // Check if angle is within the valid range
+        return angle >= minAngleDegrees && angle <= maxAngleDegrees;
     }
 
     private void UpdateRandomPathVisualization()

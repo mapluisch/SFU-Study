@@ -384,9 +384,11 @@ MonoBehaviour:
   editorCamera: {fileID: 0}
   enableRandomPathGenerator: 1
   randomPathLength: 5
-  minDistanceBetweenAnchors: 0.1
+  minDistanceBetweenAnchors: 0
   maxDistanceBetweenAnchors: 100
   maxAttemptsPerAnchor: 50
+  minAngleDegrees: 80
+  maxAngleDegrees: 110
 --- !u!4 &674080318
 Transform:
   m_ObjectHideFlags: 0
@@ -396,7 +398,7 @@ Transform:
   m_GameObject: {fileID: 674080316}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 5.321952, y: -6.3885307, z: 1.8436298}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

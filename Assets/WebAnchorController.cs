@@ -230,6 +230,9 @@ public class WebAnchorController : MonoBehaviour
             case "/api/anchor":
                 await CreateAnchorAsync(request, response);
                 break;
+            case "/api/random-path":
+                await GenerateRandomPathAsync(request, response);
+                break;
             default:
                 await SendResponseAsync(response, "Method not allowed", 405);
                 break;
@@ -579,6 +582,39 @@ public class WebAnchorController : MonoBehaviour
         await SendResponseAsync(response, json, 200, "application/json");
     }
 
+    private async Task GenerateRandomPathAsync(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        bool success = false;
+        string message = "";
+
+        await UnityMainThreadDispatcher.Instance.EnqueueAsync(() =>
+        {
+            if (FixedPath.Instance == null)
+            {
+                Debug.LogWarning("WebAnchorController: FixedPath.Instance is null");
+                message = "FixedPath instance not found";
+                return;
+            }
+
+            try
+            {
+                FixedPath.Instance.GenerateRandomPath();
+                success = true;
+                message = "Random path generated successfully";
+                Debug.Log("Random path generated from web UI");
+            }
+            catch (System.Exception e)
+            {
+                message = $"Error generating random path: {e.Message}";
+                Debug.LogError($"Error generating random path: {e.Message}");
+            }
+        });
+
+        var result = new { success = success, message = message };
+        var json = JsonConvert.SerializeObject(result);
+        await SendResponseAsync(response, json, success ? 200 : 500, "application/json");
+    }
+
     private async Task<string> ReadRequestBodyAsync(HttpListenerRequest request)
     {
         using (var reader = new System.IO.StreamReader(request.InputStream, request.ContentEncoding))
@@ -813,6 +849,7 @@ public class WebAnchorController : MonoBehaviour
         <div style=""text-align: center; margin-bottom: 20px;"">
             <button onclick=""createAnchor()"">Create New Anchor</button>
             <button onclick=""refreshAnchors()"">Refresh Anchors</button>
+            <button onclick=""generateRandomPath()"" style=""background-color: #28a745;"">Generate Random Path</button>
         </div>
         
         <div id=""anchorsContainer"">
@@ -1413,6 +1450,33 @@ public class WebAnchorController : MonoBehaviour
                 }
             } catch (error) {
                 console.error('Error fetching random path:', error);
+            }
+        }
+        
+        async function generateRandomPath() {
+            try {
+                const response = await fetch('/api/random-path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('Random path generated successfully');
+                    // Refresh the random path data
+                    await refreshRandomPath();
+                    // Auto-enable random path visualization
+                    document.getElementById('showRandomPath').checked = true;
+                    showRandomPath = true;
+                    drawPlot();
+                } else {
+                    console.error('Failed to generate random path:', result.message);
+                    alert('Failed to generate random path: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error generating random path:', error);
+                alert('Error generating random path: ' + error.message);
             }
         }
         
