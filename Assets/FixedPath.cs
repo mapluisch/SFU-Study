@@ -18,10 +18,16 @@ public class FixedPath : MonoBehaviour
     [SerializeField] private ActionBasedController rightController;
     [SerializeField] private bool useLeftController = true;
 
+    [Header("Editor Testing")]
+    [SerializeField] private bool enableKeyboardInput = true;
+    [SerializeField] private float keyboardMovementSpeed = 5f;
+    [SerializeField] private Transform editorCamera;
+
     private List<GameObject> anchorPoints = new List<GameObject>();
     private List<Vector3> anchorPositions = new List<Vector3>();
     private LineRenderer pathLine;
     private bool triggerPressed = false;
+    private bool keyboardTriggerPressed = false;
 
     // File path for saving anchor data
     private string saveFilePath;
@@ -31,6 +37,12 @@ public class FixedPath : MonoBehaviour
         InitializeControllers();
         InitializePathLine();
         LoadSavedPath();
+
+        // Set up editor camera if not assigned
+        if (editorCamera == null && Application.isEditor)
+        {
+            editorCamera = Camera.main?.transform;
+        }
     }
 
     void InitializeControllers()
@@ -96,8 +108,76 @@ public class FixedPath : MonoBehaviour
             }
         }
 
+        // Handle keyboard input for editor testing
+        if (Application.isEditor && enableKeyboardInput)
+        {
+            HandleKeyboardInput();
+        }
+
         // Update path line
         UpdatePathLine();
+    }
+
+    void HandleKeyboardInput()
+    {
+        if (editorCamera == null) return;
+
+        // Move camera with WASD keys
+        Vector3 movement = Vector3.zero;
+        if (Input.GetKey(KeyCode.W)) movement += editorCamera.forward;
+        if (Input.GetKey(KeyCode.S)) movement -= editorCamera.forward;
+        if (Input.GetKey(KeyCode.A)) movement -= editorCamera.right;
+        if (Input.GetKey(KeyCode.D)) movement += editorCamera.right;
+        if (Input.GetKey(KeyCode.Q)) movement += Vector3.up;
+        if (Input.GetKey(KeyCode.E)) movement += Vector3.down;
+
+        // Normalize and apply movement
+        if (movement.magnitude > 0)
+        {
+            movement.Normalize();
+            editorCamera.position += movement * keyboardMovementSpeed * Time.deltaTime;
+        }
+
+        // Rotate camera with mouse
+        if (Input.GetMouseButton(1)) // Right mouse button
+        {
+            float mouseX = Input.GetAxis("Mouse X") * 2f;
+            float mouseY = Input.GetAxis("Mouse Y") * 2f;
+
+            editorCamera.Rotate(Vector3.up, mouseX, Space.World);
+            editorCamera.Rotate(Vector3.right, -mouseY, Space.Self);
+        }
+
+        // Create anchor point with Space key (simulates trigger)
+        if (Input.GetKeyDown(KeyCode.Space) && !keyboardTriggerPressed)
+        {
+            keyboardTriggerPressed = true;
+            CreateAnchorPointFromCamera();
+        }
+        else if (Input.GetKeyUp(KeyCode.Space))
+        {
+            keyboardTriggerPressed = false;
+        }
+
+        // Clear path with C key (simulates bumper)
+        if (Input.GetKeyDown(KeyCode.C))
+        {
+            ClearPath();
+        }
+
+        // Save path manually with S key
+        if (Input.GetKeyDown(KeyCode.S) && Input.GetKey(KeyCode.LeftControl))
+        {
+            SavePath();
+            Debug.Log("Path saved manually");
+        }
+
+        // Load path manually with L key
+        if (Input.GetKeyDown(KeyCode.L) && Input.GetKey(KeyCode.LeftControl))
+        {
+            LoadSavedPath();
+            Debug.Log("Path loaded manually");
+        }
     }
 
     void CreateAnchorPoint(ActionBasedController controller)
@@ -120,6 +200,27 @@ public class FixedPath : MonoBehaviour
         SavePath();
 
         Debug.Log($"Created anchor point {anchorPoints.Count} at position: {controllerPosition}");
+    }
+
+    void CreateAnchorPointFromCamera()
+    {
+        if (editorCamera == null) return;
+
+        // Create anchor point at camera position
+        Vector3 cameraPosition = editorCamera.position;
+        Quaternion cameraRotation = editorCamera.rotation;
+
+        GameObject anchorPoint = Instantiate(anchorPointPrefab, cameraPosition, cameraRotation);
+        anchorPoint.name = $"AnchorPoint_{anchorPoints.Count}";
+
+        // Add to lists
+        anchorPoints.Add(anchorPoint);
+        anchorPositions.Add(cameraPosition);
+
+        // Save the path after adding a new point
+        SavePath();
+
+        Debug.Log($"Created anchor point {anchorPoints.Count} at position: {cameraPosition}");
     }
 
     void UpdatePathLine()

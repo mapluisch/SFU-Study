@@ -1,0 +1,90 @@
+Unity Editor session started at 7/18/2025 9:35:01 AM
+
+7/18/2025 9:35:02 AM: [Warning] Registering subsystem descriptor with duplicate ID 'MagicLeap-Raycast' - overwriting previous entry.
+UnityEngine.XR.ARSubsystems.XRRaycastSubsystemDescriptor:RegisterDescriptor (UnityEngine.XR.ARSubsystems.XRRaycastSubsystemDescriptor/Cinfo)
+MagicLeap.OpenXR.InteractionProfiles.MagicLeapControllerProfile/RaycastSubsystem:RegisterDescriptor () (at ./Library/PackageCache/com.magicleap.unitysdk@2.6.0/Runtime/OpenXR/MagicLeapControllerProfile.cs:512)
+
+
+7/18/2025 9:35:02 AM: [Warning] No active UnityEngine.XR.ARSubsystems.XRSessionSubsystem is available. This feature is either not supported on the current platform, or you may need to enable a provider in <b>Project Settings</b> > <b>XR Plug-in Management</b>.
+UnityEngine.XR.ARFoundation.ARSession:OnEnable () (at ./Library/PackageCache/com.unity.xr.arfoundation@5.1.5/Runtime/ARFoundation/ARSession.cs:342)
+
+
+7/18/2025 9:35:02 AM: [Log] OpenXR Controllers initialized
+UnityEngine.Debug:Log (object)
+FixedPath:InitializeControllers () (at Assets/FixedPath.cs:69)
+FixedPath:Start () (at Assets/FixedPath.cs:37)
+
+
+7/18/2025 9:35:02 AM: [Log] Path cleared
+UnityEngine.Debug:Log (object)
+FixedPath:ClearPath () (at Assets/FixedPath.cs:323)
+FixedPath:LoadSavedPath () (at Assets/FixedPath.cs:274)
+FixedPath:Start () (at Assets/FixedPath.cs:39)
+
+
+7/18/2025 9:35:02 AM: [Log] Loaded path with 6 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:LoadSavedPath () (at Assets/FixedPath.cs:289)
+FixedPath:Start () (at Assets/FixedPath.cs:39)
+
+
+7/18/2025 9:35:07 AM: [Log] Path saved with 7 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:07 AM: [Log] Created anchor point 7 at position: (-2.68, 0.00, 2.23)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:11 AM: [Log] Path saved with 8 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:11 AM: [Log] Created anchor point 8 at position: (-5.48, 0.01, -0.86)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:22 AM: [Log] Path saved with 9 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:22 AM: [Log] Created anchor point 9 at position: (3.43, 0.00, 0.33)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:24 AM: [Log] Path saved with 10 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:35:24 AM: [Log] Created anchor point 10 at position: (1.37, 0.00, 1.08)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+

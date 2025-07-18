@@ -1,0 +1,107 @@
+Unity Editor session started at 7/18/2025 9:34:19 AM
+
+7/18/2025 9:34:20 AM: [Warning] Registering subsystem descriptor with duplicate ID 'MagicLeap-Raycast' - overwriting previous entry.
+UnityEngine.XR.ARSubsystems.XRRaycastSubsystemDescriptor:RegisterDescriptor (UnityEngine.XR.ARSubsystems.XRRaycastSubsystemDescriptor/Cinfo)
+MagicLeap.OpenXR.InteractionProfiles.MagicLeapControllerProfile/RaycastSubsystem:RegisterDescriptor () (at ./Library/PackageCache/com.magicleap.unitysdk@2.6.0/Runtime/OpenXR/MagicLeapControllerProfile.cs:512)
+
+
+7/18/2025 9:34:20 AM: [Warning] No active UnityEngine.XR.ARSubsystems.XRSessionSubsystem is available. This feature is either not supported on the current platform, or you may need to enable a provider in <b>Project Settings</b> > <b>XR Plug-in Management</b>.
+UnityEngine.XR.ARFoundation.ARSession:OnEnable () (at ./Library/PackageCache/com.unity.xr.arfoundation@5.1.5/Runtime/ARFoundation/ARSession.cs:342)
+
+
+7/18/2025 9:34:20 AM: [Log] OpenXR Controllers initialized
+UnityEngine.Debug:Log (object)
+FixedPath:InitializeControllers () (at Assets/FixedPath.cs:69)
+FixedPath:Start () (at Assets/FixedPath.cs:37)
+
+
+7/18/2025 9:34:23 AM: [Log] Path saved with 1 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:23 AM: [Log] Created anchor point 1 at position: (0.16, 0.00, 0.00)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:26 AM: [Log] Path saved with 2 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:26 AM: [Log] Created anchor point 2 at position: (1.44, 0.00, -2.63)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:31 AM: [Log] Path saved with 3 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:31 AM: [Log] Created anchor point 3 at position: (5.65, 0.00, -3.02)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:33 AM: [Log] Path saved with 4 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:33 AM: [Log] Created anchor point 4 at position: (7.75, 0.00, -1.06)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:36 AM: [Log] Path saved with 5 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:36 AM: [Log] Created anchor point 5 at position: (6.10, 0.00, 1.33)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:39 AM: [Log] Path saved with 6 anchor points
+UnityEngine.Debug:Log (object)
+FixedPath:SavePath () (at Assets/FixedPath.cs:256)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:221)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
+7/18/2025 9:34:39 AM: [Log] Created anchor point 6 at position: (7.55, 0.00, 4.04)
+UnityEngine.Debug:Log (object)
+FixedPath:CreateAnchorPointFromCamera () (at Assets/FixedPath.cs:223)
+FixedPath:HandleKeyboardInput () (at Assets/FixedPath.cs:155)
+FixedPath:Update () (at Assets/FixedPath.cs:114)
+
+
