@@ -8,8 +8,12 @@ using System.IO;
 
 public class FixedPath : MonoBehaviour
 {
+    // Singleton instance
+    public static FixedPath Instance { get; private set; }
+
     [Header("Path Settings")]
-    [SerializeField] private GameObject anchorPointPrefab;
+    [SerializeField] public GameObject anchorPointPrefab;
+    [SerializeField] public Transform anchorPointParent;
     [SerializeField] private Material pathLineMaterial;
     [SerializeField] private float lineWidth = 0.01f;
 
@@ -31,6 +35,20 @@ public class FixedPath : MonoBehaviour
 
     // File path for saving anchor data
     private string saveFilePath;
+
+    void Awake()
+    {
+        // Singleton pattern
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
 
     void Start()
     {
@@ -189,7 +207,7 @@ public class FixedPath : MonoBehaviour
         Quaternion controllerRotation = controller.transform.rotation;
 
         // Create anchor point at controller position
-        GameObject anchorPoint = Instantiate(anchorPointPrefab, controllerPosition, controllerRotation);
+        GameObject anchorPoint = Instantiate(anchorPointPrefab, controllerPosition, controllerRotation, anchorPointParent);
         anchorPoint.name = $"AnchorPoint_{anchorPoints.Count}";
 
         // Add to lists
@@ -321,6 +339,92 @@ public class FixedPath : MonoBehaviour
         }
 
         Debug.Log("Path cleared");
+    }
+
+    // Public methods to access anchors
+    public List<GameObject> GetAllAnchorPoints()
+    {
+        return new List<GameObject>(anchorPoints);
+    }
+
+    public List<Vector3> GetAllAnchorPositions()
+    {
+        return new List<Vector3>(anchorPositions);
+    }
+
+    public int GetAnchorCount()
+    {
+        return anchorPoints.Count;
+    }
+
+    public GameObject GetAnchorAtIndex(int index)
+    {
+        if (index >= 0 && index < anchorPoints.Count)
+        {
+            return anchorPoints[index];
+        }
+        return null;
+    }
+
+    public Vector3 GetAnchorPositionAtIndex(int index)
+    {
+        if (index >= 0 && index < anchorPositions.Count)
+        {
+            return anchorPositions[index];
+        }
+        return Vector3.zero;
+    }
+
+    public List<AnchorPoint> GetAllAnchorComponents()
+    {
+        List<AnchorPoint> anchorComponents = new List<AnchorPoint>();
+        foreach (GameObject anchor in anchorPoints)
+        {
+            if (anchor != null)
+            {
+                AnchorPoint component = anchor.GetComponent<AnchorPoint>();
+                if (component != null)
+                {
+                    anchorComponents.Add(component);
+                }
+            }
+        }
+        return anchorComponents;
+    }
+
+    // Public method to add anchor points from external sources (like WebAnchorController)
+    public void AddAnchorPoint(GameObject anchorPoint, Vector3 position)
+    {
+        anchorPoints.Add(anchorPoint);
+        anchorPositions.Add(position);
+
+        // Save the path after adding a new point
+        SavePath();
+
+        Debug.Log($"Added anchor point {anchorPoints.Count} at position: {position}");
+    }
+
+    // Public method to update anchor position
+    public void UpdateAnchorPosition(int index, Vector3 newPosition)
+    {
+        if (index >= 0 && index < anchorPositions.Count)
+        {
+            anchorPositions[index] = newPosition;
+            SavePath();
+            Debug.Log($"Updated anchor position at index {index} to {newPosition}");
+        }
+    }
+
+    // Public method to remove anchor at specific index
+    public void RemoveAnchorAtIndex(int index)
+    {
+        if (index >= 0 && index < anchorPoints.Count)
+        {
+            anchorPoints.RemoveAt(index);
+            anchorPositions.RemoveAt(index);
+            SavePath();
+            Debug.Log($"Removed anchor at index {index}");
+        }
     }
 
     // Data structure for serialization
