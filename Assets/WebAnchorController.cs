@@ -811,6 +811,7 @@ public class WebAnchorController : MonoBehaviour
             canvas.addEventListener('mouseup', handleMouseUp);
             canvas.addEventListener('mouseleave', handleMouseUp);
             canvas.addEventListener('mouseover', handleMouseOver);
+            canvas.addEventListener('mousemove', handleTooltipMove);
             
             // Create tooltip element
             tooltip = document.createElement('div');
@@ -1154,6 +1155,8 @@ public class WebAnchorController : MonoBehaviour
         }
         
         function handleMouseOver(e) {
+            if (isDragging) return; // Don't show tooltip while dragging
+            
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
@@ -1164,7 +1167,7 @@ public class WebAnchorController : MonoBehaviour
                 const anchorPos = worldToCanvas(anchor.position.x, anchor.position.z);
                 const distance = Math.sqrt((mouseX - anchorPos.x) ** 2 + (mouseY - anchorPos.y) ** 2);
                 
-                if (distance < 10) {
+                if (distance < 15) { // Increased hover area
                     showTooltip(e, anchor, i);
                     return;
                 }
@@ -1191,6 +1194,29 @@ public class WebAnchorController : MonoBehaviour
             if (tooltip) {
                 tooltip.style.display = 'none';
             }
+        }
+        
+        // Handle tooltip on mouse move (separate from dragging)
+        function handleTooltipMove(e) {
+            if (isDragging) return; // Don't show tooltip while dragging
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Check if hovering over an anchor
+            for (let i = 0; i < anchors.length; i++) {
+                const anchor = anchors[i];
+                const anchorPos = worldToCanvas(anchor.position.x, anchor.position.z);
+                const distance = Math.sqrt((mouseX - anchorPos.x) ** 2 + (mouseY - anchorPos.y) ** 2);
+                
+                if (distance < 15) {
+                    showTooltip(e, anchor, i);
+                    return;
+                }
+            }
+            
+            hideTooltip();
         }
         
         // Toggle path visibility
